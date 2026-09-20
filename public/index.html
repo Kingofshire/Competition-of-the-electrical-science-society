@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ورود به مسابقه</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap" style="max-width:420px; padding-top:80px;">
+  <header class="top" style="justify-content:center;">
+    <h1 id="pageTitle">مسابقه</h1>
+  </header>
+
+  <div class="card">
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <button class="btn secondary" id="tabLogin" style="flex:1;">ورود</button>
+      <button class="btn secondary" id="tabRegister" style="flex:1;">ثبت‌نام</button>
+    </div>
+
+    <div id="formArea">
+      <label>نام کاربری</label>
+      <input type="text" id="username" placeholder="مثلاً ali_hosseini">
+      <label>رمز عبور</label>
+      <input type="password" id="password" placeholder="حداقل ۴ کاراکتر">
+      <button class="primary" id="submitBtn" style="width:100%;">ورود</button>
+      <div class="error" id="msg" style="display:none;"></div>
+    </div>
+  </div>
+
+  <p class="muted" style="text-align:center;">پنل ادمین؟ <a href="/admin.html" style="color:var(--accent2);">از اینجا</a></p>
+</div>
+
+<script>
+let mode = 'login';
+const tabLogin = document.getElementById('tabLogin');
+const tabRegister = document.getElementById('tabRegister');
+const submitBtn = document.getElementById('submitBtn');
+const msg = document.getElementById('msg');
+
+function setMode(m) {
+  mode = m;
+  submitBtn.textContent = m === 'login' ? 'ورود' : 'ثبت‌نام و ورود';
+  tabLogin.style.opacity = m === 'login' ? 1 : 0.55;
+  tabRegister.style.opacity = m === 'register' ? 1 : 0.55;
+  msg.style.display = 'none';
+}
+tabLogin.onclick = () => setMode('login');
+tabRegister.onclick = () => setMode('register');
+setMode('login');
+
+async function checkSession() {
+  const r = await fetch('/api/me').then(r => r.json());
+  if (r.username) window.location.href = '/quiz.html';
+}
+checkSession();
+
+submitBtn.onclick = async () => {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  msg.style.display = 'none';
+  if (!username || !password) {
+    msg.textContent = 'نام کاربری و رمز عبور را وارد کنید.';
+    msg.style.display = 'block';
+    return;
+  }
+  submitBtn.disabled = true;
+  try {
+    const res = await fetch('/api/' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'خطا');
+    window.location.href = '/quiz.html';
+  } catch (e) {
+    msg.textContent = e.message;
+    msg.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
+  }
+};
+
+fetch('/api/questions').catch(() => {}); // no-op warmup
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    
+    const usernameInput = document.querySelector('input[type="text"]');
+    const passwordInput = document.querySelector('input[type="password"]');
+    
+
+    const loginButton = document.querySelector('button.primary') || document.querySelector('button.btn') || document.querySelector('button');
+
+    const handleEnter = (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault(); 
+        if (loginButton) loginButton.click(); 
+      }
+    };
+
+
+    if (usernameInput) usernameInput.addEventListener('keydown', handleEnter);
+    if (passwordInput) passwordInput.addEventListener('keydown', handleEnter);
+  });
+</script>
+</body>
+</html>

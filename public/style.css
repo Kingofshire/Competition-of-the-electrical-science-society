@@ -1,0 +1,247 @@
+:root {
+  /* پالت رنگی مینیمال و تاریک مدرن */
+  --bg: #09090b;           /* مشکی زغالی بسیار عمیق */
+  --card: #141416;         /* خاکستری تیره برای کارتها */
+  --card2: #1d1d21;        /* رنگ المانهای داخل کارت مثل اینپوتها */
+  --text: #f4f4f5;         /* سفید مات برای خوانایی بالا و کاهش خستگی چشم */
+  --muted: #a1a1aa;        /* خاکستری مدیوم برای متون فرعی و لیبلها */
+  --accent: #ffffff;       /* در تم مینیمال، سفید یا یک رنگ شاخص به عنوان اکسنت عمل میکند */
+  --accent-rgb: 255, 255, 255;
+  --accent2: #38bdf8;      /* آبی آسمانی ملایم برای موارد خاص مثل شمارنده */
+  --good: #10b981;         /* سبز استاندارد */
+  --bad: #ef4444;          /* قرمز استاندارد */
+  --border: #27272a;       /* خطوط مرزی بسیار ظریف */
+  --radius: 8px;           /* لبههای تیزتر و مدرنتر نسبت به قبل */
+  --transition: all 0.2s ease;
+}
+
+* { 
+  box-sizing: border-box; 
+  transition: var(--transition); /* انیمیشن نرم برای تمام تغییرات حالت */
+}
+
+body {
+  margin: 0;
+  font-family: 'Vazirmatn', Tahoma, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  direction: rtl;
+  min-height: 100vh;
+  letter-spacing: -0.02em;
+}
+
+.wrap {
+  max-width: 800px; /* فشردهتر و شکیلتر شدن باکس اصلی */
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* هدر متمایز و تمیز */
+header.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 20px;
+}
+
+header.top h1 {
+  font-size: 1.25rem;
+  margin: 0;
+  font-weight: 700;
+  color: var(--text);
+  background: none; 
+  -webkit-background-clip: unset;
+  background-clip: unset;
+}
+
+
+nav a, nav button {
+  color: var(--muted);
+  text-decoration: none;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-inline-start: 20px;
+  font-weight: 500;
+}
+nav a:hover, nav button:hover { 
+  color: var(--text); 
+}
+
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+}
+
+.card h2, .card h3 { 
+  margin-top: 0; 
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+label { 
+  display: block; 
+  margin: 16px 0 8px; 
+  color: var(--muted); 
+  font-size: 0.85rem; 
+  font-weight: 500;
+}
+
+
+input[type=text], input[type=password], input[type=number], input[type=datetime-local], textarea, select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+}
+input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, input[type=datetime-local]:focus, textarea:focus, select:focus {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
+}
+
+textarea { 
+  min-height: 140px; 
+  resize: vertical; 
+  direction: ltr; 
+  text-align: left; 
+  font-family: 'Fira Code', 'Courier New', monospace; 
+}
+
+
+button.primary, button.btn {
+  margin-top: 20px;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--text);
+  background: var(--text); 
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+button.primary:hover, button.btn:hover { 
+  background: transparent;
+  color: var(--text);
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+button.secondary:hover {
+  background: var(--card2);
+  border-color: var(--muted);
+}
+
+button:disabled { 
+  opacity: 0.3; 
+  cursor: not-allowed; 
+  background: var(--border) !important;
+  color: var(--muted) !important;
+  border-color: transparent !important;
+}
+
+.error { color: var(--bad); margin-top: 12px; font-size: 0.85rem; }
+.success { color: var(--good); margin-top: 12px; font-size: 0.85rem; }
+.muted { color: var(--muted); font-size: 0.85rem; }
+
+
+.badge { 
+  display: inline-block; 
+  padding: 4px 10px; 
+  border-radius: 4px; 
+  font-size: 0.75rem; 
+  font-weight: 600; 
+  border: 1px solid transparent;
+}
+.badge.good { background: rgba(16, 185, 129, 0.06); color: var(--good); border-color: rgba(16, 185, 129, 0.15); }
+.badge.bad { background: rgba(239, 68, 68, 0.06); color: var(--bad); border-color: rgba(239, 68, 68, 0.15); }
+.badge.pending { background: rgba(161, 161, 170, 0.06); color: var(--muted); border-color: rgba(161, 161, 170, 0.15); }
+.badge.code { background: rgba(56, 189, 248, 0.06); color: var(--accent2); border-color: rgba(56, 189, 248, 0.15); }
+.badge.mcq { background: rgba(255, 255, 255, 0.06); color: var(--text); border-color: rgba(255, 255, 255, 0.15); }
+
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: var(--card);
+}
+.option-row:hover { 
+  border-color: var(--muted); 
+  background: var(--card2);
+}
+.option-row input[type=radio], .option-row input[type=checkbox] { 
+  accent-color: var(--text); /* هماهنگی چکباکس با تم مونوکروم */
+}
+
+
+table { width: 100%; border-collapse: collapse; }
+th, td { 
+  padding: 14px 12px; 
+  text-align: right; 
+  border-bottom: 1px solid var(--border); 
+  font-size: 0.9rem;
+}
+th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+tr.me { 
+  background: rgba(255, 255, 255, 0.03); 
+  font-weight: 600;
+}
+.rank { color: var(--muted); width: 40px; font-weight: 700; }
+
+
+.countdown { 
+  font-size: 1.5rem; 
+  font-weight: 700; 
+  color: var(--accent2); 
+  font-variant-numeric: tabular-nums; /* جلوگیری از تکان خوردن اعداد تایمر */
+}
+
+
+pre.output { 
+  background: #000000; 
+  border: 1px solid var(--border);
+  padding: 16px; 
+  border-radius: var(--radius); 
+  direction: ltr; 
+  text-align: left; 
+  overflow-x: auto; 
+  font-size: 0.85rem; 
+  font-family: 'Fira Code', monospace;
+}
+
+
+.q-item { 
+  border-bottom: 1px solid var(--border); 
+  padding: 20px 0; 
+}
+.q-item:last-child { 
+  border-bottom: none; 
+}

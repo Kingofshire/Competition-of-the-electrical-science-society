@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لیدربورد</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>لیدربورد</h1>
+    <nav>
+      <a href="/quiz.html">سوالات</a>
+      <a href="/results.html">نتیجه من</a>
+      <button id="logoutBtn">خروج</button>
+    </nav>
+  </header>
+
+  <div class="card" id="content">در حال بارگذاری...</div>
+</div>
+
+<script>
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/index.html';
+};
+
+let myUsername = null;
+let timerHandle = null;
+
+function fmtRemaining(ms) {
+  if (ms <= 0) return '۰۰:۰۰:۰۰';
+  const s = Math.floor(ms / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  return `${h}:${m}:${sec}`;
+}
+
+async function render() {
+  const meRes = await fetch('/api/me').then(r => r.json());
+  if (!meRes.username) { window.location.href = '/index.html'; return; }
+  myUsername = meRes.username;
+
+  const data = await fetch('/api/leaderboard').then(r => r.json());
+  const content = document.getElementById('content');
+
+  if (data.locked) {
+    let countdown = '';
+    if (data.endTime) {
+      countdown = `<div class="countdown" id="cd"></div>`;
+      if (timerHandle) clearInterval(timerHandle);
+      timerHandle = setInterval(() => {
+        const remain = new Date(data.endTime) - new Date();
+        const cd = document.getElementById('cd');
+        if (cd) cd.textContent = fmtRemaining(remain);
+        if (remain <= 0) { clearInterval(timerHandle); render(); }
+      }, 1000);
+    }
+    content.innerHTML = `
+      <h2>🔒 لیدربورد قفل است</h2>
+      <p class="muted">نتایج پس از پایان مسابقه نمایش داده می‌شود.</p>
+      ${countdown}
+    `;
+    return;
+  }
+
+  if (timerHandle) clearInterval(timerHandle);
+
+  const rows = data.entries.map((e, i) => `
+    <tr class="${e.username === myUsername ? 'me' : ''}">
+      <td class="rank">${i + 1}</td>
+      <td>${escapeHtml(e.username)}${e.username === myUsername ? ' (شما)' : ''}</td>
+      <td>${e.score}</td>
+      <td class="muted">${e.answered}</td>
+    </tr>
+  `).join('');
+
+  content.innerHTML = `
+    <h2>🏆 نتایج نهایی</h2>
+    <table>
+      <thead><tr><th>رتبه</th><th>نام کاربری</th><th>امتیاز</th><th>پاسخ‌داده</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" class="muted">هنوز شرکت‌کننده‌ای نیست.</td></tr>'}</tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+render();
+</script>
+</body>
+</html>

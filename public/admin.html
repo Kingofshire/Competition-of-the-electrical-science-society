@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پنل ادمین</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>پنل ادمین</h1>
+    <nav id="adminNav" style="display:none;">
+      <button id="logoutBtn">خروج ادمین</button>
+    </nav>
+  </header>
+
+  <div class="card" id="loginCard">
+    <label>رمز ادمین</label>
+    <input type="password" id="adminPass">
+    <button class="primary" id="loginBtn">ورود</button>
+    <div class="error" id="loginMsg" style="display:none;"></div>
+  </div>
+
+  <div id="panel" style="display:none;">
+
+    <div class="card">
+      <h2>⚙️ تنظیمات مسابقه</h2>
+      <label>عنوان مسابقه</label>
+      <input type="text" id="cfgTitle">
+      <label>زمان پایان مسابقه (بعدش لیدربورد باز می‌شود)</label>
+      <input type="datetime-local" id="cfgEndTime">
+      <label style="display:flex; align-items:center; gap:8px; margin-top:14px;">
+        <input type="checkbox" id="cfgForceOpen" style="width:auto;">
+        <span>باز کردن دستی لیدربورد همین الان (صرف‌نظر از زمان)</span>
+      </label>
+      <button class="primary" id="saveCfgBtn">ذخیره تنظیمات</button>
+      <div class="success" id="cfgMsg" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>➕ افزودن سوال</h2>
+      <label>نوع سوال</label>
+      <select id="qType">
+        <option value="mcq">تستی (چهارگزینه‌ای)</option>
+        <option value="code">کدنویسی</option>
+      </select>
+      <label>عنوان کوتاه</label>
+      <input type="text" id="qTitle" placeholder="مثلاً: مسئله جمع دو عدد">
+      <label>متن کامل سوال</label>
+      <textarea id="qPrompt" style="direction:rtl; text-align:right; font-family:inherit;" placeholder="توضیح کامل سوال..."></textarea>
+      <label>امتیاز</label>
+      <input type="number" id="qPoints" value="10">
+
+      <div id="mcqFields">
+        <label>گزینه‌ها (هر خط یک گزینه)</label>
+        <textarea id="qOptions" placeholder="گزینه ۱&#10;گزینه ۲&#10;گزینه ۳&#10;گزینه ۴"></textarea>
+        <label>شماره گزینه درست (۰ = گزینه اول)</label>
+        <input type="number" id="qCorrectIndex" value="0">
+      </div>
+
+      <div id="codeFields" style="display:none;">
+        <label>زبان برنامه‌نویسی</label>
+        <select id="qLanguage">
+          <option value="python">Python</option>
+          <option value="c">C</option>
+          <option value="cpp">C++</option>
+          <option value="java">Java</option>
+          <option value="javascript">JavaScript</option>
+          <option value="csharp">C#</option>
+          <option value="go">Go</option>
+          <option value="ruby">Ruby</option>
+          <option value="php">PHP</option>
+        </select>
+        <label>کد اولیه (استارتر کد — اختیاری)</label>
+        <textarea id="qStarter" placeholder="کدی که در ابتدا داخل باکس شرکت‌کننده نشان داده می‌شود"></textarea>
+
+        <label style="margin-top:20px;">تست‌کیس‌ها (کد باید روی <u>همه‌ی</u> این‌ها جواب درست بده)</label>
+        <div id="testCasesWrap"></div>
+        <button type="button" class="secondary btn" id="addTestCaseBtn" style="margin-top:8px;">➕ افزودن تست‌کیس</button>
+      </div>
+
+      <button class="primary" id="addQBtn">افزودن سوال</button>
+      <div class="error" id="qMsg" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>📋 سوالات فعلی</h2>
+      <div id="qList"></div>
+    </div>
+
+    <div class="card">
+      <h2>🏆 لیدربورد زنده (فقط ادمین)</h2>
+      <div id="liveLeaderboard"></div>
+    </div>
+
+    <div class="card">
+      <h2>👥 شرکت‌کننده‌ها</h2>
+      <div id="userList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const loginCard = document.getElementById('loginCard');
+const panel = document.getElementById('panel');
+const adminNav = document.getElementById('adminNav');
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+document.getElementById('qType').onchange = (e) => {
+  document.getElementById('mcqFields').style.display = e.target.value === 'mcq' ? 'block' : 'none';
+  document.getElementById('codeFields').style.display = e.target.value === 'code' ? 'block' : 'none';
+  if (e.target.value === 'code' && document.getElementById('testCasesWrap').children.length === 0) {
+    addTestCaseRow();
+  }
+};
+
+const testCasesWrap = document.getElementById('testCasesWrap');
+
+function addTestCaseRow(stdinVal, expectedVal) {
+  const idx = testCasesWrap.children.length + 1;
+  const row = document.createElement('div');
+  row.className = 'card';
+  row.style.cssText = 'padding:16px; margin-bottom:10px; background:var(--card2);';
+  row.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong class="muted" style="font-size:0.85rem;">تست‌کیس #${idx}</strong>
+      <button type="button" class="secondary btn removeTcBtn" style="margin:0; padding:3px 10px; font-size:0.75rem;">حذف</button>
+    </div>
+    <label>ورودی / stdin (اختیاری)</label>
+    <textarea class="tcStdin" style="min-height:50px;">${stdinVal || ''}</textarea>
+    <label>خروجی مورد انتظار (دقیقاً همین باید چاپ شود)</label>
+    <textarea class="tcExpected" style="min-height:50px;">${expectedVal || ''}</textarea>
+  `;
+  row.querySelector('.removeTcBtn').onclick = () => {
+    row.remove();
+    renumberTestCases();
+  };
+  testCasesWrap.appendChild(row);
+}
+
+function renumberTestCases() {
+  [...testCasesWrap.children].forEach((row, i) => {
+    row.querySelector('strong').textContent = `تست‌کیس #${i + 1}`;
+  });
+}
+
+document.getElementById('addTestCaseBtn').onclick = () => addTestCaseRow();
+addTestCaseRow(); // first test case by default 
+
+document.getElementById('loginBtn').onclick = async () => {
+  const password = document.getElementById('adminPass').value;
+  const res = await fetch('/api/admin/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  const data = await res.json();
+  const msg = document.getElementById('loginMsg');
+  if (!res.ok) { msg.textContent = data.error; msg.style.display = 'block'; return; }
+  showPanel();
+};
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/admin/logout', { method: 'POST' });
+  location.reload();
+};
+
+async function showPanel() {
+  loginCard.style.display = 'none';
+  panel.style.display = 'block';
+  adminNav.style.display = 'block';
+  await loadConfig();
+  await loadQuestions();
+  await loadLeaderboard();
+  await loadUsers();
+}
+
+async function loadConfig() {
+  const r = await fetch('/api/admin/config').then(r => r.json());
+  document.getElementById('cfgTitle').value = r.config.title || '';
+  document.getElementById('cfgForceOpen').checked = !!r.config.leaderboardForceOpen;
+  if (r.config.competitionEndTime) {
+    const d = new Date(r.config.competitionEndTime);
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('cfgEndTime').value = local;
+  }
+}
+
+document.getElementById('saveCfgBtn').onclick = async () => {
+  const endTimeLocal = document.getElementById('cfgEndTime').value;
+  const competitionEndTime = endTimeLocal ? new Date(endTimeLocal).toISOString() : null;
+  const res = await fetch('/api/admin/config', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: document.getElementById('cfgTitle').value,
+      competitionEndTime,
+      leaderboardForceOpen: document.getElementById('cfgForceOpen').checked
+    })
+  });
+  const msg = document.getElementById('cfgMsg');
+  if (res.ok) { msg.textContent = 'ذخیره شد ✓'; msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
+};
+
+document.getElementById('addQBtn').onclick = async () => {
+  const type = document.getElementById('qType').value;
+  const payload = {
+    type,
+    title: document.getElementById('qTitle').value.trim(),
+    prompt: document.getElementById('qPrompt').value.trim(),
+    points: Number(document.getElementById('qPoints').value) || 10
+  };
+  const msg = document.getElementById('qMsg');
+  if (type === 'mcq') {
+    payload.options = document.getElementById('qOptions').value.split('\n').map(s => s.trim()).filter(Boolean);
+    payload.correctIndex = Number(document.getElementById('qCorrectIndex').value);
+  } else {
+    payload.language = document.getElementById('qLanguage').value;
+    payload.starterCode = document.getElementById('qStarter').value;
+    payload.testCases = [...testCasesWrap.children].map(row => ({
+      stdin: row.querySelector('.tcStdin').value,
+      expectedOutput: row.querySelector('.tcExpected').value
+    })).filter(tc => tc.expectedOutput.trim() !== '');
+    if (payload.testCases.length === 0) {
+      msg.textContent = 'حداقل یک تست‌کیس با خروجی مورد انتظار لازم است.';
+      msg.style.display = 'block';
+      return;
+    }
+  }
+  const res = await fetch('/api/admin/questions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { msg.textContent = data.error; msg.style.display = 'block'; return; }
+  msg.style.display = 'none';
+  document.getElementById('qTitle').value = '';
+  document.getElementById('qPrompt').value = '';
+  document.getElementById('qOptions').value = '';
+  document.getElementById('qStarter').value = '';
+  testCasesWrap.innerHTML = '';
+  addTestCaseRow();
+  await loadQuestions();
+};
+
+async function loadQuestions() {
+  const r = await fetch('/api/admin/questions').then(r => r.json());
+  const list = document.getElementById('qList');
+  if (r.questions.length === 0) { list.innerHTML = '<p class="muted">هنوز سوالی نیست.</p>'; return; }
+  list.innerHTML = r.questions.map(q => `
+    <div class="q-item">
+      <span class="badge ${q.type === 'mcq' ? 'mcq' : 'code'}">${q.type === 'mcq' ? 'تستی' : 'کدنویسی'}</span>
+      <strong style="margin-inline-start:6px;">${escapeHtml(q.title)}</strong>
+      <span class="muted"> — ${q.points} امتیاز ${q.language ? '(' + q.language + (q.testCases ? '، ' + q.testCases.length + ' تست‌کیس' : '') + ')' : ''}</span>
+      <button class="secondary btn" style="margin-inline-start:10px; padding:4px 10px; font-size:0.8rem;" onclick="deleteQ('${q.id}')">حذف</button>
+    </div>
+  `).join('');
+}
+
+async function deleteQ(id) {
+  if (!confirm('حذف این سوال؟')) return;
+  await fetch('/api/admin/questions/' + id, { method: 'DELETE' });
+  await loadQuestions();
+}
+
+async function loadLeaderboard() {
+  const r = await fetch('/api/admin/leaderboard').then(r => r.json());
+  const el = document.getElementById('liveLeaderboard');
+  if (r.entries.length === 0) { el.innerHTML = '<p class="muted">هنوز شرکت‌کننده‌ای نیست.</p>'; return; }
+  el.innerHTML = `
+    <p class="muted">وضعیت لیدربورد عمومی: ${r.locked ? '🔒 قفل' : '🔓 باز'}</p>
+    <a class="btn secondary" href="/api/admin/leaderboard/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل</a>
+    <table>
+      <thead><tr><th>رتبه</th><th>کاربر</th><th>امتیاز</th><th>پاسخ‌داده</th></tr></thead>
+      <tbody>${r.entries.map((e, i) => `<tr><td class="rank">${i+1}</td><td>${escapeHtml(e.username)}</td><td>${e.score}</td><td class="muted">${e.answered}</td></tr>`).join('')}</tbody>
+    </table>
+  `;
+}
+
+async function loadUsers() {
+  const r = await fetch('/api/admin/users').then(r => r.json());
+  document.getElementById('userList').innerHTML = r.users.length
+    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p>`
+    : '<p class="muted">هنوز کسی ثبت‌نام نکرده.</p>';
+}
+
+// (active session)
+fetch('/api/me').then(r => r.json()).then(r => { if (r.isAdmin) showPanel(); });
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // admin login
+    const adminPasswordInput = document.querySelector('input[type="password"]');
+    const adminLoginButton = document.querySelector('button.primary') || document.querySelector('button.btn') || document.querySelector('button');
+
+    if (adminPasswordInput && adminLoginButton) {
+      adminPasswordInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          adminLoginButton.click(); 
+        }
+      });
+    }
+  });
+</script>
+
+</body>
+</html>

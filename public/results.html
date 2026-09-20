@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نتیجه من</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>نتیجه من</h1>
+    <nav>
+      <a href="/quiz.html">سوالات</a>
+      <a href="/leaderboard.html">لیدربورد</a>
+      <button id="logoutBtn">خروج</button>
+    </nav>
+  </header>
+
+  <div class="card" id="summary"></div>
+  <div class="card" id="details"></div>
+</div>
+
+<script>
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/index.html';
+};
+
+async function render() {
+  const meRes = await fetch('/api/me').then(r => r.json());
+  if (!meRes.username) { window.location.href = '/index.html'; return; }
+
+  const data = await fetch('/api/results').then(r => r.json());
+  document.getElementById('summary').innerHTML = `
+    <h2>امتیاز شما: ${data.score} از ${data.total}</h2>
+    <p class="muted">${data.answeredCount} از ${data.totalQuestions} سوال پاسخ داده شده</p>
+  `;
+
+  const rows = data.details.map(d => `
+    <div class="q-item">
+      <span class="badge ${d.type === 'mcq' ? 'mcq' : 'code'}">${d.type === 'mcq' ? 'تستی' : 'کدنویسی'}</span>
+      <strong style="margin-inline-start:6px;">${escapeHtml(d.title)}</strong>
+      <div style="margin-top:6px;">
+        ${!d.submitted
+          ? '<span class="badge pending">پاسخ‌نداده</span>'
+          : (d.correct ? `<span class="badge good">درست ✓ (+${d.earned})</span>` : '<span class="badge bad">نادرست ✗</span>')}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('details').innerHTML = '<h3>جزئیات</h3>' + (rows || '<p class="muted">سوالی نیست.</p>');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+render();
+</script>
+</body>
+</html>

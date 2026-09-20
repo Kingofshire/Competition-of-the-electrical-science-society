@@ -1,0 +1,18 @@
+{
+  "name": "quiz-competition",
+  "version": "1.0.0",
+  "description": "سیستم مسابقه آنلاین با ورود کاربران، سوالات تستی و کدی، و لیدربورد قفل‌شونده",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "exceljs": "^4.4.0"
+  }
+}

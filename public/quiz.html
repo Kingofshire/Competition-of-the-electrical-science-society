@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سوالات مسابقه</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/dracula.min.css">
+<style>
+  .CodeMirror { height: auto; min-height: 260px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.92rem; direction: ltr; }
+  .code-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .code-toolbar button { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
+  .code-toolbar button:hover { color: var(--text); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1 id="title">مسابقه</h1>
+    <nav>
+      <span class="muted" id="whoami"></span>
+      <a href="/results.html">نتیجه من</a>
+      <a href="/leaderboard.html">لیدربورد</a>
+      <button id="logoutBtn">خروج</button>
+    </nav>
+  </header>
+
+  <div id="list"></div>
+</div>
+
+<template id="mcqTemplate">
+  <div class="card q-item">
+    <span class="badge mcq">تستی</span>
+    <span class="badge" style="margin-inline-start:6px;"></span>
+    <h3></h3>
+    <p class="muted prompt"></p>
+    <div class="options"></div>
+    <button class="primary submitBtn">ثبت پاسخ</button>
+    <div class="result" style="margin-top:10px;"></div>
+  </div>
+</template>
+
+<template id="codeTemplate">
+  <div class="card q-item">
+    <span class="badge code">کدنویسی</span>
+    <span class="badge lang" style="margin-inline-start:6px;"></span>
+    <span class="badge" style="margin-inline-start:6px;"></span>
+    <h3></h3>
+    <p class="muted prompt"></p>
+    <p class="muted testCaseHint"></p>
+    <div class="code-toolbar">
+      <span class="muted">کد خود را اینجا بنویسید</span>
+      <button class="resetBtn" type="button">بازگشت به کد اولیه</button>
+    </div>
+    <textarea class="codeBox" spellcheck="false"></textarea>
+    <button class="primary submitBtn">اجرا و ثبت پاسخ</button>
+    <div class="result" style="margin-top:10px;"></div>
+  </div>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/php/php.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/ruby/ruby.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/closebrackets.min.js"></script>
+<script>
+const CM_MODE = {
+  c: 'text/x-csrc',
+  cpp: 'text/x-c++src',
+  java: 'text/x-java',
+  csharp: 'text/x-csharp',
+  python: 'text/x-python',
+  python3: 'text/x-python',
+  javascript: 'text/javascript',
+  js: 'text/javascript',
+  php: 'application/x-httpd-php',
+  ruby: 'text/x-ruby'
+};
+
+async function me() {
+  const r = await fetch('/api/me').then(r => r.json());
+  if (!r.username) { window.location.href = '/index.html'; return null; }
+  document.getElementById('whoami').textContent = 'کاربر: ' + r.username;
+  return r;
+}
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/index.html';
+};
+
+function statusBadge(q) {
+  if (q.answered) return `<span class="badge ${q.correct ? 'good' : 'bad'}">${q.correct ? 'درست ✓' : 'نادرست ✗'}</span>`;
+  return `<span class="badge pending">پاسخ‌نداده</span>`;
+}
+
+async function submitAnswer(questionId, answer, resultEl, btn, onSuccess) {
+  btn.disabled = true;
+  resultEl.innerHTML = '<span class="muted">در حال بررسی...</span>';
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questionId, answer })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'خطا در ثبت پاسخ');
+    const r = data.result;
+    let html = r.correct
+      ? `<span class="badge good">درست ✓ (+${r.points} امتیاز)</span>`
+      : `<span class="badge bad">نادرست ✗</span>`;
+    if (r.testResults) {
+      html += '<div style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">';
+      r.testResults.forEach((t, i) => {
+        html += `<div>
+          <span class="badge ${t.passed ? 'good' : 'bad'}">تست ${i + 1}: ${t.passed ? 'قبول ✓' : 'رد ✗'}</span>`;
+        if (t.compileError) {
+          html += `<div class="muted" style="margin-top:4px;">خطای کامپایل:</div><pre class="output">${escapeHtml(t.stderr || '')}</pre>`;
+        } else if (t.error) {
+          html += `<div class="error" style="margin-top:4px;">${escapeHtml(t.error)}</div>`;
+        } else if (t.stdout !== undefined) {
+          html += `<div class="muted" style="margin-top:4px;">خروجی برنامه شما:</div><pre class="output">${escapeHtml(t.stdout || '(بدون خروجی)')}</pre>`;
+          if (t.stderr) html += `<pre class="output">${escapeHtml(t.stderr)}</pre>`;
+        }
+        html += `</div>`;
+      });
+      html += '</div>';
+    }
+    resultEl.innerHTML = html;
+    if (onSuccess) onSuccess();
+    btn.textContent = 'قبلاً پاسخ داده‌اید';
+  } catch (e) {
+    resultEl.innerHTML = `<span class="error">${escapeHtml(e.message)}</span>`;
+    btn.disabled = false;
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function render() {
+  const user = await me();
+  if (!user) return;
+  const data = await fetch('/api/questions').then(r => r.json());
+  document.getElementById('title').textContent = data.title || 'مسابقه';
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+
+  if (data.questions.length === 0) {
+    list.innerHTML = '<div class="card muted">هنوز سوالی اضافه نشده است.</div>';
+    return;
+  }
+
+  data.questions.forEach((q, idx) => {
+    const tpl = document.getElementById(q.type === 'mcq' ? 'mcqTemplate' : 'codeTemplate');
+    const node = tpl.content.cloneNode(true);
+    node.querySelector('h3').textContent = `${idx + 1}. ${q.title} (${q.points} امتیاز)`;
+    node.querySelector('.prompt').textContent = q.prompt;
+    const badges = node.querySelectorAll('.badge');
+    badges[badges.length - 1].outerHTML = statusBadge(q);
+
+    list.appendChild(node); 
+    const card = list.lastElementChild;
+
+    const btn = card.querySelector('.submitBtn');
+    const resultEl = card.querySelector('.result');
+
+    if (q.answered) {
+      btn.disabled = true;
+      btn.textContent = 'قبلاً پاسخ داده‌اید';
+    }
+
+    if (q.type === 'mcq') {
+      const optsWrap = card.querySelector('.options');
+      q.options.forEach((opt, i) => {
+        const row = document.createElement('label');
+        row.className = 'option-row';
+        row.innerHTML = `<input type="radio" name="q_${q.id}" value="${i}" ${q.answered ? 'disabled' : ''}> <span>${escapeHtml(opt)}</span>`;
+        optsWrap.appendChild(row);
+      });
+      btn.onclick = () => {
+        const sel = optsWrap.querySelector('input:checked');
+        if (!sel) { resultEl.innerHTML = '<span class="error">یک گزینه را انتخاب کنید.</span>'; return; }
+        submitAnswer(q.id, Number(sel.value), resultEl, btn);
+      };
+    } else {
+      const langBadge = card.querySelector('.lang');
+      langBadge.textContent = q.language;
+      const tcCount = q.testCaseCount || 1;
+      card.querySelector('.testCaseHint').textContent =
+        `این سوال با ${tcCount} تست‌کیس بررسی می‌شود — کد باید روی همه‌ی آن‌ها جواب درست بدهد.`;
+      const codeBoxEl = card.querySelector('.codeBox');
+      const resetBtn = card.querySelector('.resetBtn');
+      const starter = q.starterCode || '';
+      codeBoxEl.value = starter;
+
+      const cm = CodeMirror.fromTextArea(codeBoxEl, {
+        mode: CM_MODE[(q.language || '').toLowerCase()] || 'text/plain',
+        theme: 'dracula',
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        extraKeys: { Tab: cm => cm.replaceSelection('    ') }
+      });
+
+      resetBtn.onclick = () => cm.setValue(starter);
+
+      if (q.answered) {
+        cm.setOption('readOnly', true);
+        resetBtn.disabled = true;
+      }
+
+      btn.onclick = () => submitAnswer(q.id, cm.getValue(), resultEl, btn, () => cm.setOption('readOnly', true));
+    }
+  });
+}
+
+render();
+</script>
+</body>
+</html>

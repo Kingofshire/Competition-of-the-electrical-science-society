@@ -1,0 +1,18 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data.json
+*.log
+
+# Local editor and OS files
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/settings.json
+Thumbs.db
+Desktop.ini
+
+# Generated binaries
+*.exe
+*.out
