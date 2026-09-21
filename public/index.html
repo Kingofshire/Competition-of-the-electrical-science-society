@@ -21,6 +21,8 @@
     <div id="formArea">
       <label>نام کاربری</label>
       <input type="text" id="username" placeholder="مثلاً ali_hosseini">
+      <label>شماره دانشجویی</label>
+      <input type="text" id="studentId" inputmode="numeric" placeholder="مثلاً 401123456" autocomplete="off">
       <label>رمز عبور</label>
       <input type="password" id="password" placeholder="حداقل ۴ کاراکتر">
       <button class="primary" id="submitBtn" style="width:100%;">ورود</button>
@@ -57,10 +59,16 @@ checkSession();
 
 submitBtn.onclick = async () => {
   const username = document.getElementById('username').value.trim();
+  const studentId = document.getElementById('studentId').value.trim();
   const password = document.getElementById('password').value;
   msg.style.display = 'none';
   if (!username || !password) {
     msg.textContent = 'نام کاربری و رمز عبور را وارد کنید.';
+    msg.style.display = 'block';
+    return;
+  }
+  if (mode === 'register' && !studentId) {
+    msg.textContent = 'شماره دانشجویی را وارد کنید.';
     msg.style.display = 'block';
     return;
   }
@@ -69,7 +77,7 @@ submitBtn.onclick = async () => {
     const res = await fetch('/api/' + mode, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, studentId, password })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'خطا');

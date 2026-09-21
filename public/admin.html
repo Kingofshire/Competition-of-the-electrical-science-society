@@ -284,7 +284,7 @@ async function loadLeaderboard() {
 async function loadUsers() {
   const r = await fetch('/api/admin/users').then(r => r.json());
   document.getElementById('userList').innerHTML = r.users.length
-    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p>`
+    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
     : '<p class="muted">هنوز کسی ثبت‌نام نکرده.</p>';
 }
 

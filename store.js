@@ -7,7 +7,7 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 
 function defaultData() {
   return {
-    users: [],       // { id, username, passwordHash, salt, createdAt }
+    users: [],       // { id, username, studentId, passwordHash, salt, createdAt }
     questions: [],    // { id, type: 'mcq'|'code', title, prompt, points,
                       //   options?, correctIndex?,  (mcq)
                       //   language?, starterCode?, stdin?, expectedOutput?  (code)

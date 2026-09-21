@@ -92,17 +92,23 @@ async function buildLeaderboardWorkbook(data, entries) {
 
 // ---------- ثبت‌نام / ورود ----------
 app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, studentId, password } = req.body || {};
   if (!username || !password || username.length < 3 || password.length < 4) {
     return res.status(400).json({ error: 'نام کاربری حداقل ۳ کاراکتر و رمز عبور حداقل ۴ کاراکتر باشد.' });
+  }
+  if (!studentId || !/^\d+$/.test(studentId)) {
+    return res.status(400).json({ error: 'شماره دانشجویی را فقط با اعداد وارد کنید.' });
   }
   const data = store.read();
   if (data.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(400).json({ error: 'این نام کاربری قبلاً ثبت شده است.' });
   }
+  if (data.users.find(u => u.studentId === studentId)) {
+    return res.status(400).json({ error: 'این شماره دانشجویی قبلاً ثبت شده است.' });
+  }
   const { salt, hash } = store.hashPassword(password);
   await store.mutate(d => {
-    d.users.push({ id: store.newId('u'), username, passwordHash: hash, salt, createdAt: new Date().toISOString() });
+    d.users.push({ id: store.newId('u'), username, studentId, passwordHash: hash, salt, createdAt: new Date().toISOString() });
     d.submissions[username] = {};
   });
   req.session.username = username;
@@ -110,10 +116,11 @@ app.post('/api/register', async (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, studentId, password } = req.body || {};
   const data = store.read();
   const user = data.users.find(u => u.username.toLowerCase() === (username || '').toLowerCase());
-  if (!user || !store.verifyPassword(password || '', user.salt, user.passwordHash)) {
+  const studentIdMatches = !user?.studentId || user.studentId === studentId;
+  if (!user || !studentIdMatches || !store.verifyPassword(password || '', user.salt, user.passwordHash)) {
     return res.status(400).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
   }
   req.session.username = user.username;
@@ -313,7 +320,7 @@ app.get('/api/admin/leaderboard/export', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const data = store.read();
-  res.json({ users: data.users.map(u => ({ username: u.username, createdAt: u.createdAt })) });
+  res.json({ users: data.users.map(u => ({ username: u.username, studentId: u.studentId || '-', createdAt: u.createdAt })) });
 });
 
 app.listen(PORT, () => {
