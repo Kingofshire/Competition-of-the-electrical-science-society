@@ -144,7 +144,6 @@ async function submitAnswer(questionId, answer, resultEl, btn, onSuccess) {
 }
 
 function showResultsOnly(message) {
-  document.getElementById('leaderboardLink').style.display = 'none';
   document.getElementById('contestStatus').innerHTML = `<div class="card"><h2>${message}</h2><a class="primary" href="/results.html" style="display:inline-block; text-decoration:none; margin-top:10px;">مشاهده نتیجه من</a></div>`;
   document.getElementById('list').innerHTML = '';
 }
