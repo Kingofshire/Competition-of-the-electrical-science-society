@@ -68,6 +68,15 @@ function isLeaderboardLocked(data) {
   return new Date() < new Date(data.config.competitionEndTime);
 }
 
+function getContestState(data, username) {
+  const user = data.users.find(u => u.username === username);
+  if (!user || !user.contestStartedAt || !user.contestEndsAt) {
+    return { started: false, expired: false, endsAt: null };
+  }
+  const expired = Date.now() >= new Date(user.contestEndsAt).getTime();
+  return { started: true, expired, endsAt: user.contestEndsAt };
+}
+
 async function buildLeaderboardWorkbook(data, entries) {
   const wb = new ExcelJS.Workbook();
   wb.creator = data.config.title || 'مسابقه';
@@ -137,6 +146,10 @@ app.get('/api/me', (req, res) => {
 // ---------- Q ----------
 app.get('/api/questions', requireAuth, (req, res) => {
   const data = store.read();
+  const contest = getContestState(data, req.session.username);
+  if (!contest.started || contest.expired) {
+    return res.json({ title: data.config.title, questions: [], contest });
+  }
   const mySubs = data.submissions[req.session.username] || {};
   const qs = [...data.questions]
     .sort((a, b) => (a.order || 0) - (b.order || 0))
@@ -147,12 +160,31 @@ app.get('/api/questions', requireAuth, (req, res) => {
       pub.correct = sub ? sub.correct : null;
       return pub;
     });
-  res.json({ title: data.config.title, questions: qs });
+  res.json({ title: data.config.title, questions: qs, contest });
+});
+
+app.post('/api/contest/start', requireAuth, async (req, res) => {
+  const data = store.read();
+  const existing = getContestState(data, req.session.username);
+  if (existing.started) return res.json({ ok: true, contest: existing });
+  const duration = Number(data.config.contestDurationMinutes) || 60;
+  const startedAt = new Date();
+  const endsAt = new Date(startedAt.getTime() + duration * 60 * 1000);
+  await store.mutate(d => {
+    const user = d.users.find(u => u.username === req.session.username);
+    user.contestStartedAt = startedAt.toISOString();
+    user.contestEndsAt = endsAt.toISOString();
+  });
+  res.json({ ok: true, contest: { started: true, expired: false, endsAt: endsAt.toISOString() } });
 });
 
 app.post('/api/submit', requireAuth, async (req, res) => {
   const { questionId, answer } = req.body || {};
   const data = store.read();
+  const contest = getContestState(data, req.session.username);
+  if (!contest.started || contest.expired) {
+    return res.status(403).json({ error: contest.started ? 'زمان مسابقه تمام شده است.' : 'ابتدا مسابقه را شروع کنید.' });
+  }
   const q = data.questions.find(q => q.id === questionId);
   if (!q) return res.status(404).json({ error: 'سوال پیدا نشد.' });
 
@@ -290,10 +322,14 @@ app.delete('/api/admin/questions/:id', requireAdmin, async (req, res) => {
 });
 
 app.put('/api/admin/config', requireAdmin, async (req, res) => {
-  const { competitionEndTime, leaderboardForceOpen, title } = req.body || {};
+  const { competitionEndTime, leaderboardForceOpen, contestDurationMinutes, title } = req.body || {};
+  if (contestDurationMinutes !== undefined && (!Number.isInteger(Number(contestDurationMinutes)) || Number(contestDurationMinutes) < 1)) {
+    return res.status(400).json({ error: 'مدت مسابقه باید حداقل ۱ دقیقه باشد.' });
+  }
   await store.mutate(d => {
     if (competitionEndTime !== undefined) d.config.competitionEndTime = competitionEndTime;
     if (leaderboardForceOpen !== undefined) d.config.leaderboardForceOpen = leaderboardForceOpen;
+    if (contestDurationMinutes !== undefined) d.config.contestDurationMinutes = Number(contestDurationMinutes);
     if (title !== undefined) d.config.title = title;
   });
   res.json({ ok: true, config: store.read().config });

@@ -12,6 +12,7 @@
   .code-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
   .code-toolbar button { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
   .code-toolbar button:hover { color: var(--text); border-color: var(--accent); }
+  #contestStatus { margin-bottom: 16px; }
 </style>
 </head>
 <body>
@@ -21,11 +22,12 @@
     <nav>
       <span class="muted" id="whoami"></span>
       <a href="/results.html">نتیجه من</a>
-      <a href="/leaderboard.html">لیدربورد</a>
+      <a href="/leaderboard.html" id="leaderboardLink">لیدربورد</a>
       <button id="logoutBtn">خروج</button>
     </nav>
   </header>
 
+  <div id="contestStatus"></div>
   <div id="list"></div>
 </div>
 
@@ -141,6 +143,29 @@ async function submitAnswer(questionId, answer, resultEl, btn, onSuccess) {
   }
 }
 
+function showResultsOnly(message) {
+  document.getElementById('leaderboardLink').style.display = 'none';
+  document.getElementById('contestStatus').innerHTML = `<div class="card"><h2>${message}</h2><a class="primary" href="/results.html" style="display:inline-block; text-decoration:none; margin-top:10px;">مشاهده نتیجه من</a></div>`;
+  document.getElementById('list').innerHTML = '';
+}
+
+function startCountdown(endsAt) {
+  const status = document.getElementById('contestStatus');
+  const tick = () => {
+    const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now());
+    const totalSeconds = Math.ceil(remaining / 1000);
+    if (totalSeconds <= 0) {
+      showResultsOnly('زمان مسابقه تمام شده است.');
+      return;
+    }
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    status.innerHTML = `<div class="card"><strong>زمان باقی‌مانده: ${minutes}:${String(seconds).padStart(2, '0')}</strong></div>`;
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
 function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
@@ -154,6 +179,30 @@ async function render() {
   document.getElementById('title').textContent = data.title || 'مسابقه';
   const list = document.getElementById('list');
   list.innerHTML = '';
+
+  if (!data.contest.started) {
+    document.getElementById('contestStatus').innerHTML = '<div class="card"><h2>مسابقه هنوز شروع نشده است.</h2><p class="muted">با زدن دکمه زیر زمان شما آغاز می‌شود.</p><button class="primary" id="startContestBtn">شروع مسابقه</button><div class="error" id="startMsg" style="display:none;"></div></div>';
+    document.getElementById('startContestBtn').onclick = async () => {
+      const btn = document.getElementById('startContestBtn');
+      btn.disabled = true;
+      const response = await fetch('/api/contest/start', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) {
+        document.getElementById('startMsg').textContent = result.error || 'خطا در شروع مسابقه';
+        document.getElementById('startMsg').style.display = 'block';
+        btn.disabled = false;
+        return;
+      }
+      render();
+    };
+    return;
+  }
+
+  if (data.contest.expired) {
+    showResultsOnly('زمان مسابقه تمام شده است.');
+    return;
+  }
+  startCountdown(data.contest.endsAt);
 
   if (data.questions.length === 0) {
     list.innerHTML = '<div class="card muted">هنوز سوالی اضافه نشده است.</div>';

@@ -30,6 +30,8 @@
       <input type="text" id="cfgTitle">
       <label>زمان پایان مسابقه (بعدش لیدربورد باز می‌شود)</label>
       <input type="datetime-local" id="cfgEndTime">
+      <label>مدت مسابقه برای هر شرکت‌کننده (دقیقه)</label>
+      <input type="number" id="cfgDuration" min="1" step="1" value="60">
       <label style="display:flex; align-items:center; gap:8px; margin-top:14px;">
         <input type="checkbox" id="cfgForceOpen" style="width:auto;">
         <span>باز کردن دستی لیدربورد همین الان (صرف‌نظر از زمان)</span>
@@ -184,6 +186,7 @@ async function loadConfig() {
   const r = await fetch('/api/admin/config').then(r => r.json());
   document.getElementById('cfgTitle').value = r.config.title || '';
   document.getElementById('cfgForceOpen').checked = !!r.config.leaderboardForceOpen;
+  document.getElementById('cfgDuration').value = r.config.contestDurationMinutes || 60;
   if (r.config.competitionEndTime) {
     const d = new Date(r.config.competitionEndTime);
     const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -199,6 +202,7 @@ document.getElementById('saveCfgBtn').onclick = async () => {
     body: JSON.stringify({
       title: document.getElementById('cfgTitle').value,
       competitionEndTime,
+      contestDurationMinutes: Number(document.getElementById('cfgDuration').value),
       leaderboardForceOpen: document.getElementById('cfgForceOpen').checked
     })
   });

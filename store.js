@@ -16,6 +16,7 @@ function defaultData() {
     config: {
       competitionEndTime: null, // ISO string; leaderboard locked until this time
       leaderboardForceOpen: false,
+      contestDurationMinutes: 60,
       title: 'مسابقه برنامه‌نویسی'
     }
   };
