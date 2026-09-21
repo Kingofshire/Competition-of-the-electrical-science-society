@@ -96,8 +96,8 @@ app.post('/api/register', async (req, res) => {
   if (!username || !password || username.length < 3 || password.length < 4) {
     return res.status(400).json({ error: 'نام کاربری حداقل ۳ کاراکتر و رمز عبور حداقل ۴ کاراکتر باشد.' });
   }
-  if (!studentId || !/^\d+$/.test(studentId)) {
-    return res.status(400).json({ error: 'شماره دانشجویی را فقط با اعداد وارد کنید.' });
+  if (!/^\d{8}$/.test(studentId || '')) {
+    return res.status(400).json({ error: 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.' });
   }
   const data = store.read();
   if (data.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {

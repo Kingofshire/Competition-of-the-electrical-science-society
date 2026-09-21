@@ -71,8 +71,8 @@ submitBtn.onclick = async () => {
     msg.style.display = 'block';
     return;
   }
-  if (mode === 'register' && !studentId) {
-    msg.textContent = 'شماره دانشجویی را وارد کنید.';
+  if (mode === 'register' && !/^\d{8}$/.test(studentId)) {
+    msg.textContent = 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.';
     msg.style.display = 'block';
     return;
   }
