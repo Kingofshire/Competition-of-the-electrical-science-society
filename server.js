@@ -119,8 +119,7 @@ app.post('/api/login', (req, res) => {
   const { username, studentId, password } = req.body || {};
   const data = store.read();
   const user = data.users.find(u => u.username.toLowerCase() === (username || '').toLowerCase());
-  const studentIdMatches = !user?.studentId || user.studentId === studentId;
-  if (!user || !studentIdMatches || !store.verifyPassword(password || '', user.salt, user.passwordHash)) {
+  if (!user || !store.verifyPassword(password || '', user.salt, user.passwordHash)) {
     return res.status(400).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
   }
   req.session.username = user.username;

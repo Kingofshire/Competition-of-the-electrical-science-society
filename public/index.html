@@ -21,8 +21,10 @@
     <div id="formArea">
       <label>نام کاربری</label>
       <input type="text" id="username" placeholder="مثلاً ali_hosseini">
-      <label>شماره دانشجویی</label>
-      <input type="text" id="studentId" inputmode="numeric" placeholder="مثلاً 401123456" autocomplete="off">
+      <div id="studentIdArea">
+        <label>شماره دانشجویی</label>
+        <input type="text" id="studentId" inputmode="numeric" placeholder="مثلاً 401123456" autocomplete="off">
+      </div>
       <label>رمز عبور</label>
       <input type="password" id="password" placeholder="حداقل ۴ کاراکتر">
       <button class="primary" id="submitBtn" style="width:100%;">ورود</button>
@@ -39,10 +41,12 @@ const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
 const submitBtn = document.getElementById('submitBtn');
 const msg = document.getElementById('msg');
+const studentIdArea = document.getElementById('studentIdArea');
 
 function setMode(m) {
   mode = m;
   submitBtn.textContent = m === 'login' ? 'ورود' : 'ثبت‌نام و ورود';
+  studentIdArea.style.display = m === 'login' ? 'none' : 'block';
   tabLogin.style.opacity = m === 'login' ? 1 : 0.55;
   tabRegister.style.opacity = m === 'register' ? 1 : 0.55;
   msg.style.display = 'none';
