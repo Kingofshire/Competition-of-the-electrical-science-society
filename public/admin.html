@@ -41,7 +41,7 @@
     </div>
 
     <div class="card">
-      <h2>➕ افزودن سوال</h2>
+      <h2 id="questionFormTitle">➕ افزودن سوال</h2>
       <label>نوع سوال</label>
       <select id="qType">
         <option value="mcq">تستی (چهارگزینه‌ای)</option>
@@ -94,6 +94,7 @@
       </div>
 
       <button class="primary" id="addQBtn">افزودن سوال</button>
+      <button class="secondary btn" id="cancelEditBtn" style="display:none; margin-inline-start:8px;">انصراف از ویرایش</button>
       <div class="error" id="qMsg" style="display:none;"></div>
     </div>
 
@@ -127,6 +128,7 @@
 const loginCard = document.getElementById('loginCard');
 const panel = document.getElementById('panel');
 const adminNav = document.getElementById('adminNav');
+let editingQuestionId = null;
 
 function escapeHtml(s) {
   const d = document.createElement('div');
@@ -293,8 +295,9 @@ document.getElementById('addQBtn').onclick = async () => {
       return;
     }
   }
-  const res = await fetch('/api/admin/questions', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const url = editingQuestionId ? '/api/admin/questions/' + editingQuestionId : '/api/admin/questions';
+  const res = await fetch(url, {
+    method: editingQuestionId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
   const data = await res.json();
@@ -304,8 +307,14 @@ document.getElementById('addQBtn').onclick = async () => {
   document.getElementById('qPrompt').value = '';
   document.getElementById('qOptions').value = '';
   document.getElementById('qStarter').value = '';
+  document.getElementById('qCorrectIndex').value = '1';
+  document.getElementById('qDifficulty').value = 'medium';
   testCasesWrap.innerHTML = '';
   addTestCaseRow();
+  editingQuestionId = null;
+  document.getElementById('questionFormTitle').textContent = '➕ افزودن سوال';
+  document.getElementById('addQBtn').textContent = 'افزودن سوال';
+  document.getElementById('cancelEditBtn').style.display = 'none';
   await loadQuestions();
 };
 
@@ -319,10 +328,54 @@ async function loadQuestions() {
       <span class="badge difficulty-${q.difficulty || 'medium'}">${q.difficulty === 'easy' ? 'آسان' : q.difficulty === 'hard' ? 'سخت' : 'متوسط'}</span>
       <strong style="margin-inline-start:6px;">${escapeHtml(q.title)}</strong>
       <span class="muted"> — ${q.points} امتیاز ${q.language ? '(' + q.language + (q.testCases ? '، ' + q.testCases.length + ' تست‌کیس' : '') + ')' : ''}</span>
-      <button class="secondary btn" style="margin-inline-start:10px; padding:4px 10px; font-size:0.8rem;" onclick="deleteQ('${q.id}')">حذف</button>
+      <button class="secondary btn" style="margin-inline-start:10px; padding:4px 10px; font-size:0.8rem;" onclick="editQ('${q.id}')">ویرایش</button>
+      <button class="secondary btn" style="margin-inline-start:6px; padding:4px 10px; font-size:0.8rem;" onclick="deleteQ('${q.id}')">حذف</button>
     </div>
   `).join('');
 }
+
+async function editQ(id) {
+  const question = (await fetch('/api/admin/questions').then(r => r.json())).questions.find(q => q.id === id);
+  if (!question) return;
+  editingQuestionId = id;
+  document.getElementById('questionFormTitle').textContent = '✏️ ویرایش سوال';
+  document.getElementById('addQBtn').textContent = 'ذخیره ویرایش';
+  document.getElementById('cancelEditBtn').style.display = 'inline-block';
+  document.getElementById('qType').value = question.type;
+  document.getElementById('qDifficulty').value = question.difficulty || 'medium';
+  document.getElementById('qTitle').value = question.title || '';
+  document.getElementById('qPrompt').value = question.prompt || '';
+  document.getElementById('qPoints').value = question.points || 10;
+  document.getElementById('qType').dispatchEvent(new Event('change'));
+  if (question.type === 'mcq') {
+    document.getElementById('qOptions').value = (question.options || []).join('\n');
+    document.getElementById('qCorrectIndex').value = String((question.correctIndex || 0) + 1);
+  } else {
+    document.getElementById('qLanguage').value = question.language || 'python';
+    document.getElementById('qStarter').value = question.starterCode || '';
+    testCasesWrap.innerHTML = '';
+    (question.testCases || []).forEach(testCase => {
+      addTestCaseRow();
+      const row = testCasesWrap.lastElementChild;
+      row.querySelector('.tcStdin').value = testCase.stdin || '';
+      row.querySelector('.tcExpected').value = testCase.expectedOutput || '';
+    });
+  }
+  document.getElementById('questionFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.getElementById('cancelEditBtn').onclick = () => {
+  editingQuestionId = null;
+  document.getElementById('questionFormTitle').textContent = '➕ افزودن سوال';
+  document.getElementById('addQBtn').textContent = 'افزودن سوال';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+  document.getElementById('qTitle').value = '';
+  document.getElementById('qPrompt').value = '';
+  document.getElementById('qOptions').value = '';
+  document.getElementById('qStarter').value = '';
+  testCasesWrap.innerHTML = '';
+  addTestCaseRow();
+};
 
 async function deleteQ(id) {
   if (!confirm('حذف این سوال؟')) return;

@@ -314,22 +314,42 @@ app.get('/api/admin/questions', requireAdmin, (req, res) => {
 
 app.post('/api/admin/questions', requireAdmin, async (req, res) => {
   const q = req.body || {};
-  const difficulties = ['easy', 'medium', 'hard'];
-  if (!q.type || !q.title || !q.prompt || !q.points) {
-    return res.status(400).json({ error: 'فیلدهای type، title، prompt و points الزامی است.' });
-  }
-  if (!difficulties.includes(q.difficulty)) {
-    return res.status(400).json({ error: 'سختی سوال باید آسان، متوسط یا سخت باشد.' });
-  }
-  if (q.type === 'mcq' && (!Array.isArray(q.options) || q.options.length < 2 || !Number.isInteger(q.correctIndex) || q.correctIndex < 0 || q.correctIndex >= q.options.length)) {
-    return res.status(400).json({ error: 'برای سوال تستی، گزینه‌ها و شماره گزینه درست معتبر الزامی است.' });
-  }
-  if (q.type === 'code' && (!q.language || !Array.isArray(q.testCases) || q.testCases.length === 0 || q.testCases.some(tc => !tc.expectedOutput || !tc.expectedOutput.trim()))) {
-    return res.status(400).json({ error: 'برای سوال کدی، language و حداقل یک testCase با expectedOutput الزامی است.' });
-  }
+  const validationError = validateQuestion(q);
+  if (validationError) return res.status(400).json({ error: validationError });
   const newQ = { ...q, id: store.newId('q'), order: Date.now() };
   await store.mutate(d => { d.questions.push(newQ); });
   res.json({ ok: true, question: newQ });
+});
+
+function validateQuestion(q) {
+  const difficulties = ['easy', 'medium', 'hard'];
+  if (!q.type || !q.title || !q.prompt || !q.points) {
+    return 'فیلدهای type، title، prompt و points الزامی است.';
+  }
+  if (!difficulties.includes(q.difficulty)) {
+    return 'سختی سوال باید آسان، متوسط یا سخت باشد.';
+  }
+  if (q.type === 'mcq' && (!Array.isArray(q.options) || q.options.length < 2 || !Number.isInteger(q.correctIndex) || q.correctIndex < 0 || q.correctIndex >= q.options.length)) {
+    return 'برای سوال تستی، گزینه‌ها و شماره گزینه درست معتبر الزامی است.';
+  }
+  if (q.type === 'code' && (!q.language || !Array.isArray(q.testCases) || q.testCases.length === 0 || q.testCases.some(tc => !tc.expectedOutput || !tc.expectedOutput.trim()))) {
+    return 'برای سوال کدی، language و حداقل یک testCase با expectedOutput الزامی است.';
+  }
+  return null;
+}
+
+app.put('/api/admin/questions/:id', requireAdmin, async (req, res) => {
+  const validationError = validateQuestion(req.body || {});
+  if (validationError) return res.status(400).json({ error: validationError });
+  let updatedQuestion;
+  await store.mutate(d => {
+    const index = d.questions.findIndex(q => q.id === req.params.id);
+    if (index === -1) return;
+    updatedQuestion = { ...req.body, id: req.params.id, order: d.questions[index].order };
+    d.questions[index] = updatedQuestion;
+  });
+  if (!updatedQuestion) return res.status(404).json({ error: 'سوال پیدا نشد.' });
+  res.json({ ok: true, question: updatedQuestion });
 });
 
 app.delete('/api/admin/questions/:id', requireAdmin, async (req, res) => {
