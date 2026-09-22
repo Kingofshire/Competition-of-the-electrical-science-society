@@ -106,6 +106,14 @@
     <div class="card">
       <h2>🎓 شماره‌های دانشجویی مجاز</h2>
       <p class="muted">شماره دانشجویی ۸ رقمی. فقط شماره‌های این فهرست می‌توانند ثبت‌نام کنند.</p>
+      <label>افزودن شماره جدید</label>
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <input type="text" id="newStudentIdInput" inputmode="numeric" maxlength="8" placeholder="مثلاً 40123456" style="flex:1;">
+        <button class="secondary btn" id="addStudentIdBtn" type="button">افزودن</button>
+      </div>
+      <div class="success" id="newStudentIdMsg" style="display:none;"></div>
+      <div class="error" id="newStudentIdError" style="display:none;"></div>
+      <label style="margin-top:14px;">ویرایش گروهی شماره‌ها</label>
       <textarea id="studentIdsInput" rows="8" inputmode="numeric" placeholder="40123456&#10;40123457"></textarea>
       <button class="primary" id="saveStudentIdsBtn">ذخیره شماره‌ها</button>
       <div class="success" id="studentIdsMsg" style="display:none;"></div>
@@ -128,6 +136,7 @@
 const loginCard = document.getElementById('loginCard');
 const panel = document.getElementById('panel');
 const adminNav = document.getElementById('adminNav');
+let adminRefreshTimer = null;
 let editingQuestionId = null;
 
 function escapeHtml(s) {
@@ -203,12 +212,46 @@ async function showPanel() {
   await loadStudentIds();
   await loadLeaderboard();
   await loadUsers();
+  if (adminRefreshTimer) clearInterval(adminRefreshTimer);
+  adminRefreshTimer = setInterval(() => {
+    loadLeaderboard();
+    loadUsers();
+  }, 5000);
 }
 
 async function loadStudentIds() {
   const r = await fetch('/api/admin/student-ids').then(r => r.json());
   document.getElementById('studentIdsInput').value = (r.studentIds || []).join('\n');
 }
+
+document.getElementById('addStudentIdBtn').onclick = async () => {
+  const input = document.getElementById('newStudentIdInput');
+  const success = document.getElementById('newStudentIdMsg');
+  const error = document.getElementById('newStudentIdError');
+  success.style.display = 'none';
+  error.style.display = 'none';
+  const studentId = input.value.trim();
+  if (!studentId) {
+    error.textContent = 'شماره دانشجویی را وارد کنید.';
+    error.style.display = 'block';
+    return;
+  }
+  const res = await fetch('/api/admin/student-ids/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentId })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    error.textContent = data.error || 'خطا در افزودن شماره.';
+    error.style.display = 'block';
+    return;
+  }
+  input.value = '';
+  document.getElementById('studentIdsInput').value = data.studentIds.join('\n');
+  success.textContent = 'شماره با موفقیت اضافه شد ✓';
+  success.style.display = 'block';
+};
 
 document.getElementById('saveStudentIdsBtn').onclick = async () => {
   const ids = document.getElementById('studentIdsInput').value
@@ -400,7 +443,7 @@ async function loadLeaderboard() {
 async function loadUsers() {
   const r = await fetch('/api/admin/users').then(r => r.json());
   document.getElementById('userList').innerHTML = r.users.length
-    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
+    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><a class="btn secondary" href="/api/admin/users/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل شرکت‌کننده‌ها</a><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
     : '<p class="muted">هنوز کسی ثبت‌نام نکرده.</p>';
 }
 

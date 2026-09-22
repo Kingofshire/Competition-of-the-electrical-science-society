@@ -106,6 +106,33 @@ async function buildLeaderboardWorkbook(data, entries) {
   return wb;
 }
 
+async function buildUsersWorkbook(data) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = data.config.title || 'مسابقه';
+  const sheet = wb.addWorksheet('شرکت‌کننده‌ها', { views: [{ rightToLeft: true }] });
+
+  sheet.columns = [
+    { header: 'نام کاربری', key: 'username', width: 28 },
+    { header: 'شماره دانشجویی', key: 'studentId', width: 20 },
+    { header: 'تعداد سوال جواب داده', key: 'answered', width: 24 },
+    { header: 'امتیاز', key: 'score', width: 14 }
+  ];
+  sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).alignment = { horizontal: 'center' };
+
+  data.users.forEach(user => {
+    sheet.addRow({
+      username: user.username,
+      studentId: user.studentId || '-',
+      answered: Object.keys(data.submissions[user.username] || {}).length,
+      score: computeScore(data, user.username)
+    });
+  });
+
+  sheet.eachRow(row => { row.alignment = { horizontal: 'center' }; });
+  return wb;
+}
+
 // ---------- ثبت‌نام / ورود ----------
 app.post('/api/register', async (req, res) => {
   const { username, studentId, password } = req.body || {};
@@ -397,9 +424,37 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
   res.json({ users: data.users.map(u => ({ username: u.username, studentId: u.studentId || '-', createdAt: u.createdAt })) });
 });
 
+app.get('/api/admin/users/export', requireAdmin, async (req, res) => {
+  const data = store.read();
+  const wb = await buildUsersWorkbook(data);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="participants.xlsx"');
+  await wb.xlsx.write(res);
+  res.end();
+});
+
 app.get('/api/admin/student-ids', requireAdmin, (req, res) => {
   const data = store.read();
   res.json({ studentIds: Array.isArray(data.allowedStudentIds) ? data.allowedStudentIds : [] });
+});
+
+app.post('/api/admin/student-ids/add', requireAdmin, async (req, res) => {
+  const studentId = normalizeStudentId(req.body?.studentId);
+  if (!/^\d{8}$/.test(studentId)) {
+    return res.status(400).json({ error: 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.' });
+  }
+  let studentIds;
+  await store.mutate(data => {
+    const currentIds = Array.isArray(data.allowedStudentIds) ? data.allowedStudentIds : [];
+    if (currentIds.includes(studentId)) return;
+    data.allowedStudentIds = [...currentIds, studentId];
+    studentIds = data.allowedStudentIds;
+  });
+  if (!studentIds) {
+    studentIds = store.read().allowedStudentIds;
+    return res.status(400).json({ error: 'این شماره قبلاً در فهرست وجود دارد.', studentIds });
+  }
+  res.json({ ok: true, studentIds });
 });
 
 app.put('/api/admin/student-ids', requireAdmin, async (req, res) => {

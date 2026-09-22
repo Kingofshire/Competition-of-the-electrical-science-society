@@ -28,6 +28,7 @@ document.getElementById('logoutBtn').onclick = async () => {
 
 let myUsername = null;
 let timerHandle = null;
+let refreshHandle = null;
 
 function fmtRemaining(ms) {
   if (ms <= 0) return '۰۰:۰۰:۰۰';
@@ -93,6 +94,7 @@ function escapeHtml(s) {
 }
 
 render();
+refreshHandle = setInterval(render, 10000);
 </script>
 </body>
 </html>
