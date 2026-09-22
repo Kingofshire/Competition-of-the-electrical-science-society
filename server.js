@@ -157,11 +157,15 @@ app.get('/api/me', (req, res) => {
 // ---------- Q ----------
 app.get('/api/questions', requireAuth, (req, res) => {
   const data = store.read();
+  const mySubs = data.submissions[req.session.username] || {};
+  const progress = {
+    answered: Object.keys(mySubs).length,
+    total: data.questions.length
+  };
   const contest = getContestState(data, req.session.username);
   if (!contest.started || contest.expired) {
-    return res.json({ title: data.config.title, questions: [], contest });
+    return res.json({ title: data.config.title, questions: [], contest, progress });
   }
-  const mySubs = data.submissions[req.session.username] || {};
   const qs = [...data.questions]
     .sort((a, b) => (a.order || 0) - (b.order || 0))
     .map(q => {
@@ -171,7 +175,7 @@ app.get('/api/questions', requireAuth, (req, res) => {
       pub.correct = sub ? sub.correct : null;
       return pub;
     });
-  res.json({ title: data.config.title, questions: qs, contest });
+  res.json({ title: data.config.title, questions: qs, contest, progress });
 });
 
 app.post('/api/contest/start', requireAuth, async (req, res) => {

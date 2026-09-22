@@ -21,7 +21,10 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <h1 id="title">مسابقه</h1>
+    <div>
+      <h1 id="title">مسابقه</h1>
+      <p class="muted" id="progress" style="margin:4px 0 0;"></p>
+    </div>
     <nav>
       <span class="muted" id="whoami"></span>
       <a href="/results.html">نتیجه من</a>
@@ -205,6 +208,7 @@ async function render() {
   if (!user) return;
   const data = await fetch('/api/questions').then(r => r.json());
   document.getElementById('title').textContent = data.title || 'مسابقه';
+  document.getElementById('progress').textContent = `${data.progress?.answered || 0} از ${data.progress?.total || 0} سؤال پاسخ داده شده`;
   const list = document.getElementById('list');
   list.innerHTML = '';
 
