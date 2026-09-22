@@ -92,6 +92,15 @@
     </div>
 
     <div class="card">
+      <h2>🎓 شماره‌های دانشجویی مجاز</h2>
+      <p class="muted">شماره دانشجویی ۸ رقمی. فقط شماره‌های این فهرست می‌توانند ثبت‌نام کنند.</p>
+      <textarea id="studentIdsInput" rows="8" inputmode="numeric" placeholder="40123456&#10;40123457"></textarea>
+      <button class="primary" id="saveStudentIdsBtn">ذخیره شماره‌ها</button>
+      <div class="success" id="studentIdsMsg" style="display:none;"></div>
+      <div class="error" id="studentIdsError" style="display:none;"></div>
+    </div>
+
+    <div class="card">
       <h2>🏆 لیدربورد زنده (فقط ادمین)</h2>
       <div id="liveLeaderboard"></div>
     </div>
@@ -178,9 +187,40 @@ async function showPanel() {
   adminNav.style.display = 'block';
   await loadConfig();
   await loadQuestions();
+  await loadStudentIds();
   await loadLeaderboard();
   await loadUsers();
 }
+
+async function loadStudentIds() {
+  const r = await fetch('/api/admin/student-ids').then(r => r.json());
+  document.getElementById('studentIdsInput').value = (r.studentIds || []).join('\n');
+}
+
+document.getElementById('saveStudentIdsBtn').onclick = async () => {
+  const ids = document.getElementById('studentIdsInput').value
+    .split(/\r?\n/)
+    .map(id => id.trim())
+    .filter(Boolean);
+  const res = await fetch('/api/admin/student-ids', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentIds: ids })
+  });
+  const data = await res.json();
+  const success = document.getElementById('studentIdsMsg');
+  const error = document.getElementById('studentIdsError');
+  success.style.display = 'none';
+  error.style.display = 'none';
+  if (!res.ok) {
+    error.textContent = data.error || 'خطا در ذخیره شماره‌ها.';
+    error.style.display = 'block';
+    return;
+  }
+  document.getElementById('studentIdsInput').value = data.studentIds.join('\n');
+  success.textContent = `${data.studentIds.length} شماره ذخیره شد ✓`;
+  success.style.display = 'block';
+};
 
 async function loadConfig() {
   const r = await fetch('/api/admin/config').then(r => r.json());

@@ -43,6 +43,12 @@ const submitBtn = document.getElementById('submitBtn');
 const msg = document.getElementById('msg');
 const studentIdArea = document.getElementById('studentIdArea');
 
+function normalizeStudentId(value) {
+  return value.trim()
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+}
+
 function setMode(m) {
   mode = m;
   submitBtn.textContent = m === 'login' ? 'ورود' : 'ثبت‌نام و ورود';
@@ -63,7 +69,7 @@ checkSession();
 
 submitBtn.onclick = async () => {
   const username = document.getElementById('username').value.trim();
-  const studentId = document.getElementById('studentId').value.trim();
+  const studentId = normalizeStudentId(document.getElementById('studentId').value);
   const password = document.getElementById('password').value;
   msg.style.display = 'none';
   if (!username || !password) {

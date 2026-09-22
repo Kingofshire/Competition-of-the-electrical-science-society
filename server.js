@@ -31,6 +31,13 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function normalizeStudentId(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+}
+
 function publicQuestion(q) {
   // فقط اطلاعاتی که شرکت‌کننده باید ببیند (بدون جواب درست)
   const base = { id: q.id, type: q.type, title: q.title, prompt: q.prompt, points: q.points };
@@ -102,22 +109,26 @@ async function buildLeaderboardWorkbook(data, entries) {
 // ---------- ثبت‌نام / ورود ----------
 app.post('/api/register', async (req, res) => {
   const { username, studentId, password } = req.body || {};
+  const normalizedStudentId = normalizeStudentId(studentId);
   if (!username || !password || username.length < 3 || password.length < 4) {
     return res.status(400).json({ error: 'نام کاربری حداقل ۳ کاراکتر و رمز عبور حداقل ۴ کاراکتر باشد.' });
   }
-  if (!/^\d{8}$/.test(studentId || '')) {
+  if (!/^\d{8}$/.test(normalizedStudentId)) {
     return res.status(400).json({ error: 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.' });
   }
   const data = store.read();
   if (data.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(400).json({ error: 'این نام کاربری قبلاً ثبت شده است.' });
   }
-  if (data.users.find(u => u.studentId === studentId)) {
+  if (data.users.find(u => u.studentId === normalizedStudentId)) {
     return res.status(400).json({ error: 'این شماره دانشجویی قبلاً ثبت شده است.' });
+  }
+  if (!Array.isArray(data.allowedStudentIds) || !data.allowedStudentIds.includes(normalizedStudentId)) {
+    return res.status(400).json({ error: 'این شماره دانشجویی در فهرست مجاز مسابقه نیست.' });
   }
   const { salt, hash } = store.hashPassword(password);
   await store.mutate(d => {
-    d.users.push({ id: store.newId('u'), username, studentId, passwordHash: hash, salt, createdAt: new Date().toISOString() });
+    d.users.push({ id: store.newId('u'), username, studentId: normalizedStudentId, passwordHash: hash, salt, createdAt: new Date().toISOString() });
     d.submissions[username] = {};
   });
   req.session.username = username;
@@ -356,6 +367,22 @@ app.get('/api/admin/leaderboard/export', requireAdmin, async (req, res) => {
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const data = store.read();
   res.json({ users: data.users.map(u => ({ username: u.username, studentId: u.studentId || '-', createdAt: u.createdAt })) });
+});
+
+app.get('/api/admin/student-ids', requireAdmin, (req, res) => {
+  const data = store.read();
+  res.json({ studentIds: Array.isArray(data.allowedStudentIds) ? data.allowedStudentIds : [] });
+});
+
+app.put('/api/admin/student-ids', requireAdmin, async (req, res) => {
+  const rawIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+  const studentIds = [...new Set(rawIds.map(normalizeStudentId).filter(Boolean))];
+  const invalid = studentIds.filter(id => !/^\d{8}$/.test(id));
+  if (invalid.length > 0) {
+    return res.status(400).json({ error: `این شماره‌ها باید دقیقاً ۸ رقم باشند: ${invalid.join('، ')}` });
+  }
+  await store.mutate(data => { data.allowedStudentIds = studentIds; });
+  res.json({ ok: true, studentIds });
 });
 
 app.listen(PORT, () => {
