@@ -47,6 +47,12 @@
         <option value="mcq">تستی (چهارگزینه‌ای)</option>
         <option value="code">کدنویسی</option>
       </select>
+      <label>سختی سوال</label>
+      <select id="qDifficulty">
+        <option value="easy">آسان</option>
+        <option value="medium" selected>متوسط</option>
+        <option value="hard">سخت</option>
+      </select>
       <label>عنوان کوتاه</label>
       <input type="text" id="qTitle" placeholder="مثلاً: مسئله جمع دو عدد">
       <label>متن کامل سوال</label>
@@ -57,8 +63,13 @@
       <div id="mcqFields">
         <label>گزینه‌ها (هر خط یک گزینه)</label>
         <textarea id="qOptions" placeholder="گزینه ۱&#10;گزینه ۲&#10;گزینه ۳&#10;گزینه ۴"></textarea>
-        <label>شماره گزینه درست (۰ = گزینه اول)</label>
-        <input type="number" id="qCorrectIndex" value="0">
+        <label>شماره گزینه درست</label>
+        <select id="qCorrectIndex">
+          <option value="1">۱ - گزینه ۱</option>
+          <option value="2">۲ - گزینه ۲</option>
+          <option value="3">۳ - گزینه ۳</option>
+          <option value="4">۴ - گزینه ۴</option>
+        </select>
       </div>
 
       <div id="codeFields" style="display:none;">
@@ -254,6 +265,7 @@ document.getElementById('addQBtn').onclick = async () => {
   const type = document.getElementById('qType').value;
   const payload = {
     type,
+    difficulty: document.getElementById('qDifficulty').value,
     title: document.getElementById('qTitle').value.trim(),
     prompt: document.getElementById('qPrompt').value.trim(),
     points: Number(document.getElementById('qPoints').value) || 10
@@ -261,7 +273,13 @@ document.getElementById('addQBtn').onclick = async () => {
   const msg = document.getElementById('qMsg');
   if (type === 'mcq') {
     payload.options = document.getElementById('qOptions').value.split('\n').map(s => s.trim()).filter(Boolean);
-    payload.correctIndex = Number(document.getElementById('qCorrectIndex').value);
+    const correctOptionNumber = Number(document.getElementById('qCorrectIndex').value);
+    if (correctOptionNumber > payload.options.length) {
+      msg.textContent = 'شماره گزینه درست نمی‌تواند بیشتر از تعداد گزینه‌ها باشد.';
+      msg.style.display = 'block';
+      return;
+    }
+    payload.correctIndex = correctOptionNumber - 1;
   } else {
     payload.language = document.getElementById('qLanguage').value;
     payload.starterCode = document.getElementById('qStarter').value;
@@ -298,6 +316,7 @@ async function loadQuestions() {
   list.innerHTML = r.questions.map(q => `
     <div class="q-item">
       <span class="badge ${q.type === 'mcq' ? 'mcq' : 'code'}">${q.type === 'mcq' ? 'تستی' : 'کدنویسی'}</span>
+      <span class="badge difficulty-${q.difficulty || 'medium'}">${q.difficulty === 'easy' ? 'آسان' : q.difficulty === 'hard' ? 'سخت' : 'متوسط'}</span>
       <strong style="margin-inline-start:6px;">${escapeHtml(q.title)}</strong>
       <span class="muted"> — ${q.points} امتیاز ${q.language ? '(' + q.language + (q.testCases ? '، ' + q.testCases.length + ' تست‌کیس' : '') + ')' : ''}</span>
       <button class="secondary btn" style="margin-inline-start:10px; padding:4px 10px; font-size:0.8rem;" onclick="deleteQ('${q.id}')">حذف</button>

@@ -13,10 +13,10 @@
   .code-toolbar button { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
   .code-toolbar button:hover { color: var(--text); border-color: var(--accent); }
   #contestStatus { margin-bottom: 16px; }
-  #answerProgress { margin-bottom: 16px; }
-  .progress-card { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .progress-number { font-size:1.05rem; font-weight:700; }
   header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-top: 12px; }
+  .difficulty-easy { background: #047857; color: #ecfdf5; border-color: #10b981; }
+  .difficulty-medium { background: #a16207; color: #fefce8; border-color: #eab308; }
+  .difficulty-hard { background: #881337; color: #fff1f2; border-color: #be123c; }
 </style>
 </head>
 <body>
@@ -35,7 +35,6 @@
   </header>
 
   <div id="contestStatus"></div>
-  <div id="answerProgress" style="display:none;"></div>
   <div id="list"></div>
 </div>
 
@@ -105,33 +104,25 @@ document.getElementById('logoutBtn').onclick = async () => {
   window.location.href = '/index.html';
 };
 
-async function updateAnswerProgress() {
-  const progressEl = document.getElementById('answerProgress');
+async function updateHeaderProgress() {
   try {
     const response = await fetch('/api/results');
-    if (!response.ok) {
-      progressEl.style.display = 'none';
-      return;
-    }
-
+    if (!response.ok) return;
     const data = await response.json();
-    progressEl.innerHTML = `
-      <div class="card progress-card">
-        <span class="muted">وضعیت پاسخ‌ها</span>
-        <span class="progress-number">
-          ${data.answeredCount} از ${data.totalQuestions} سوال پاسخ داده شده
-        </span>
-      </div>
-    `;
-    progressEl.style.display = 'block';
+    document.getElementById('progress').textContent = `${data.answeredCount} از ${data.totalQuestions} سؤال پاسخ داده شده`;
   } catch (e) {
-    progressEl.style.display = 'none';
   }
 }
 
 function statusBadge(q) {
   if (q.answered) return `<span class="badge ${q.correct ? 'good' : 'bad'}">${q.correct ? 'درست ✓' : 'نادرست ✗'}</span>`;
   return `<span class="badge pending">پاسخ‌نداده</span>`;
+}
+
+function difficultyBadge(q) {
+  const difficulty = q.difficulty || 'medium';
+  const labels = { easy: 'آسان', medium: 'متوسط', hard: 'سخت' };
+  return `<span class="badge difficulty-${difficulty}" style="margin-inline-start:6px;">${labels[difficulty] || labels.medium}</span>`;
 }
 
 async function submitAnswer(questionId, answer, resultEl, btn, onSuccess) {
@@ -169,7 +160,7 @@ async function submitAnswer(questionId, answer, resultEl, btn, onSuccess) {
     resultEl.innerHTML = html;
     if (onSuccess) onSuccess();
     btn.textContent = 'قبلاً پاسخ داده‌اید';
-    await updateAnswerProgress();
+    await updateHeaderProgress();
   } catch (e) {
     resultEl.innerHTML = `<span class="error">${escapeHtml(e.message)}</span>`;
     btn.disabled = false;
@@ -214,7 +205,6 @@ async function render() {
   list.innerHTML = '';
 
   if (!data.contest.started) {
-    document.getElementById('answerProgress').style.display = 'none';
     document.getElementById('contestStatus').innerHTML = '<div class="card"><h2>مسابقه هنوز شروع نشده است.</h2><p class="muted">با زدن دکمه زیر زمان شما آغاز می‌شود.</p><button class="primary" id="startContestBtn">شروع مسابقه</button><div class="error" id="startMsg" style="display:none;"></div></div>';
     document.getElementById('startContestBtn').onclick = async () => {
       const btn = document.getElementById('startContestBtn');
@@ -233,12 +223,10 @@ async function render() {
   }
 
   if (data.contest.expired) {
-    document.getElementById('answerProgress').style.display = 'none';
     showResultsOnly('زمان مسابقه تمام شده است.');
     return;
   }
   startCountdown(data.contest.endsAt);
-  await updateAnswerProgress();
 
   if (data.questions.length === 0) {
     list.innerHTML = '<div class="card muted">هنوز سوالی اضافه نشده است.</div>';
@@ -250,6 +238,8 @@ async function render() {
     const node = tpl.content.cloneNode(true);
     node.querySelector('h3').textContent = `${idx + 1}. ${q.title} (${q.points} امتیاز)`;
     node.querySelector('.prompt').textContent = q.prompt;
+    const typeBadge = node.querySelector('.badge');
+    typeBadge.insertAdjacentHTML('afterend', difficultyBadge(q));
     const badges = node.querySelectorAll('.badge');
     badges[badges.length - 1].outerHTML = statusBadge(q);
 

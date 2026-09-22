@@ -40,7 +40,7 @@ function normalizeStudentId(value) {
 
 function publicQuestion(q) {
   // فقط اطلاعاتی که شرکت‌کننده باید ببیند (بدون جواب درست)
-  const base = { id: q.id, type: q.type, title: q.title, prompt: q.prompt, points: q.points };
+  const base = { id: q.id, type: q.type, difficulty: q.difficulty || 'medium', title: q.title, prompt: q.prompt, points: q.points };
   if (q.type === 'mcq') base.options = q.options;
   if (q.type === 'code') {
     base.language = q.language;
@@ -314,11 +314,15 @@ app.get('/api/admin/questions', requireAdmin, (req, res) => {
 
 app.post('/api/admin/questions', requireAdmin, async (req, res) => {
   const q = req.body || {};
+  const difficulties = ['easy', 'medium', 'hard'];
   if (!q.type || !q.title || !q.prompt || !q.points) {
     return res.status(400).json({ error: 'فیلدهای type، title، prompt و points الزامی است.' });
   }
-  if (q.type === 'mcq' && (!Array.isArray(q.options) || q.options.length < 2 || q.correctIndex == null)) {
-    return res.status(400).json({ error: 'برای سوال تستی، options و correctIndex الزامی است.' });
+  if (!difficulties.includes(q.difficulty)) {
+    return res.status(400).json({ error: 'سختی سوال باید آسان، متوسط یا سخت باشد.' });
+  }
+  if (q.type === 'mcq' && (!Array.isArray(q.options) || q.options.length < 2 || !Number.isInteger(q.correctIndex) || q.correctIndex < 0 || q.correctIndex >= q.options.length)) {
+    return res.status(400).json({ error: 'برای سوال تستی، گزینه‌ها و شماره گزینه درست معتبر الزامی است.' });
   }
   if (q.type === 'code' && (!q.language || !Array.isArray(q.testCases) || q.testCases.length === 0 || q.testCases.some(tc => !tc.expectedOutput || !tc.expectedOutput.trim()))) {
     return res.status(400).json({ error: 'برای سوال کدی، language و حداقل یک testCase با expectedOutput الزامی است.' });
