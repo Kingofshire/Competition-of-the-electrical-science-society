@@ -1,17 +1,17 @@
 :root {
-  /* پالت رنگی مینیمال و تاریک مدرن */
-  --bg: #09090b;           /* مشکی زغالی بسیار عمیق */
-  --card: #141416;         /* خاکستری تیره برای کارتها */
-  --card2: #1d1d21;        /* رنگ المانهای داخل کارت مثل اینپوتها */
+  /* پالت سرمه‌ای و طلایی مسابقه */
+  --bg: #05081A;
+  --card: #0D1533;
+  --card2: #0D1533;
   --text: #f4f4f5;         /* سفید مات برای خوانایی بالا و کاهش خستگی چشم */
   --muted: #a1a1aa;        /* خاکستری مدیوم برای متون فرعی و لیبلها */
-  --accent: #ffffff;       /* در تم مینیمال، سفید یا یک رنگ شاخص به عنوان اکسنت عمل میکند */
-  --accent-rgb: 255, 255, 255;
-  --accent2: #38bdf8;      /* آبی آسمانی ملایم برای موارد خاص مثل شمارنده */
+  --accent: #D4AF37;
+  --accent-rgb: 212, 175, 55;
+  --accent2: #D4AF37;
   --good: #10b981;         /* سبز استاندارد */
   --bad: #ef4444;          /* قرمز استاندارد */
   --border: #27272a;       /* خطوط مرزی بسیار ظریف */
-  --radius: 8px;           /* لبههای تیزتر و مدرنتر نسبت به قبل */
+  --radius: 8px;           /* لبه های تیزتر و مدرنتر نسبت به قبل */
   --transition: all 0.2s ease;
 }
 
@@ -30,8 +30,92 @@ body {
   letter-spacing: -0.02em;
 }
 
+.auth-page {
+  background-color: #05081A;
+  background-size: cover;
+  background-position: center bottom;
+}
+
+.auth-page .card {
+  background: #0D1533;
+}
+
+.auth-page input[type=text],
+.auth-page input[type=password] {
+  background: #0D1533;
+}
+
+.auth-page button.secondary {
+  background: #0D1533;
+  border-color: #0D1533;
+}
+
+.auth-page button.secondary.is-active {
+  background: #D4AF37;
+  border-color: #D4AF37;
+  color: #05081A;
+}
+
+.auth-page button.primary {
+  background: #D4AF37;
+  border-color: #D4AF37;
+  color: #05081A;
+}
+
+.auth-page button.primary:hover {
+  background: #D4AF37;
+  border-color: #D4AF37;
+  color: #05081A;
+}
+
+.auth-page .muted {
+  color: rgba(244, 244, 245, 0.72);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.auth-page .muted a {
+  color: rgba(212, 175, 55, 0.82) !important;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.auth-page .muted a:hover {
+  color: #D4AF37 !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-page .admin-tab {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  z-index: 10;
+  padding: 10px 18px 12px;
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  border-bottom: 0;
+  border-radius: 10px 0 0 0;
+  background: rgba(13, 21, 51, 0.92);
+  color: rgba(244, 244, 245, 0.82);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.auth-page .admin-tab:hover {
+  background: #D4AF37;
+  color: #05081A;
+}
+
+.user-page {
+  background-color: #05081A;
+  background-size: cover;
+  background-position: center bottom;
+}
+
 .wrap {
-  max-width: 800px; /* فشردهتر و شکیلتر شدن باکس اصلی */
+  max-width: 800px; /* فشرده تر و شکیلتر شدن باکس اصلی */
   margin: 0 auto;
   padding: 40px 24px 80px;
 }
@@ -41,9 +125,13 @@ header.top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 40px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 20px;
+  gap: 20px;
+  margin-bottom: 24px;
+  padding: 18px 20px;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: var(--radius);
+  background: rgba(13, 21, 51, 0.94);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 header.top h1 {
@@ -127,8 +215,8 @@ button.primary, button.btn {
   margin-top: 20px;
   padding: 12px 24px;
   border-radius: var(--radius);
-  border: 1px solid var(--text);
-  background: var(--text); 
+  border: 1px solid var(--accent);
+  background: var(--accent); 
   color: var(--bg);
   font-weight: 600;
   cursor: pointer;
@@ -137,17 +225,18 @@ button.primary, button.btn {
 }
 button.primary:hover, button.btn:hover { 
   background: transparent;
-  color: var(--text);
+  color: var(--accent);
 }
 
 button.secondary {
-  background: transparent;
+  background: var(--card);
   border: 1px solid var(--border);
   color: var(--text);
 }
 button.secondary:hover {
-  background: var(--card2);
-  border-color: var(--muted);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
 }
 
 button:disabled { 
@@ -194,7 +283,7 @@ button:disabled {
   background: var(--card2);
 }
 .option-row input[type=radio], .option-row input[type=checkbox] { 
-  accent-color: var(--text); /* هماهنگی چکباکس با تم مونوکروم */
+  accent-color: var(--text); 
 }
 
 
@@ -221,7 +310,7 @@ tr.me {
   font-size: 1.5rem; 
   font-weight: 700; 
   color: var(--accent2); 
-  font-variant-numeric: tabular-nums; /* جلوگیری از تکان خوردن اعداد تایمر */
+  font-variant-numeric: tabular-nums; 
 }
 
 
@@ -244,4 +333,156 @@ pre.output {
 }
 .q-item:last-child { 
   border-bottom: none; 
+}
+
+
+.scene-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: #05081A;
+}
+
+.scene-bg__image {
+  position: absolute;
+  inset: -8%;
+  background-image: url('/IMG_0293%20(1).PNG');
+  background-size: cover;
+  background-position: center bottom;
+  transform-origin: center bottom;
+  will-change: transform;
+  animation: sceneBreathe 16s ease-in-out infinite;
+}
+
+@keyframes sceneBreathe {
+  0%, 100% { filter: brightness(0.82); }
+  50%      { filter: brightness(0.94); }
+}
+
+.scene-bg__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(5, 8, 26, 0.35) 0%,
+    rgba(5, 8, 26, 0.55) 60%,
+    rgba(5, 8, 26, 0.8) 100%
+  );
+  pointer-events: none;
+}
+
+.auth-page .wrap,
+.user-page .wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Champ chracter ===== */
+.champ-mascot {
+  position: fixed;
+  width: 190px;
+  z-index: 0; 
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(150px) scale(0.8) rotate(8deg);
+  transition:
+    transform 1s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.35s ease;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.45));
+}
+
+.champ-mascot.is-visible { opacity: 1; }
+
+.champ-mascot.is-peeking {
+  transform: translateX(0) scale(1) rotate(0deg) translateY(var(--floatY, 0px)) rotate(var(--tilt, 0deg));
+}
+
+.champ-mascot.is-poking {
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateX(-22px) scale(1.05) translateY(var(--floatY, 0px));
+}
+
+@keyframes champGlow {
+  0%, 100% { filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 0px rgba(212, 175, 55, 0)); }
+  50%      { filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 14px rgba(212, 175, 55, 0.35)); }
+}
+.champ-mascot.is-peeking { animation: champGlow 4s ease-in-out infinite; }
+
+@media (max-width: 900px) {
+  .champ-mascot { display: none; }
+}
+
+
+/* ===== تایپوگرافی عنوان صفحه ورود ===== */
+.auth-page header.top {
+  border: none;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 36px;
+}
+
+.auth-page header.top h1 {
+  font-size: clamp(2rem, 7vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0;
+  background: linear-gradient(135deg, #D4AF37 0%, #f4e2a1 45%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  display: inline-block;
+  position: relative;
+  padding-bottom: 16px;
+  text-shadow: 0 4px 24px rgba(212, 175, 55, 0.25);
+}
+
+.auth-page header.top h1::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+}
+
+
+.auth-page .card {
+  padding: 40px 34px;
+}
+
+
+.auth-page #tabLogin,
+.auth-page #tabRegister {
+  padding: 16px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 0;
+}
+
+.auth-page input[type=text],
+.auth-page input[type=password] {
+  padding: 15px 16px;
+  font-size: 0.95rem;
+}
+
+.auth-page #submitBtn {
+  padding: 15px 24px;
+  font-size: 0.98rem;
+}
+
+@media (max-width: 480px) {
+  .auth-page header.top {
+    margin-bottom: 28px;
+  }
+
+  .auth-page header.top h1 {
+    padding-bottom: 12px;
+  }
 }

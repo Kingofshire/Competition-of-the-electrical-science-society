@@ -10,6 +10,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'; // حتماً قبل از استقرار واقعی عوض کنید
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-before-deploying';
+const adminLoginAttempts = new Map();
+const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
+const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(session({
@@ -323,8 +326,28 @@ app.get('/api/leaderboard', requireAuth, (req, res) => {
 
 // ---------- Admin ----------
 app.post('/api/admin/login', (req, res) => {
+  const clientKey = req.ip;
+  const now = Date.now();
+  const attempt = adminLoginAttempts.get(clientKey);
+
+  if (attempt && now - attempt.firstAttemptAt < ADMIN_LOGIN_WINDOW_MS && attempt.failures >= ADMIN_MAX_LOGIN_ATTEMPTS) {
+    const retryAfter = Math.ceil((ADMIN_LOGIN_WINDOW_MS - (now - attempt.firstAttemptAt)) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({ error: 'تلاش‌های ناموفق زیاد است. چند دقیقه بعد دوباره امتحان کنید.' });
+  }
+
+  if (!attempt || now - attempt.firstAttemptAt >= ADMIN_LOGIN_WINDOW_MS) {
+    adminLoginAttempts.set(clientKey, { failures: 0, firstAttemptAt: now });
+  }
+
   const { password } = req.body || {};
-  if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'رمز ادمین اشتباه است.' });
+  if (password !== ADMIN_PASSWORD) {
+    const current = adminLoginAttempts.get(clientKey);
+    current.failures += 1;
+    return res.status(401).json({ error: 'رمز ادمین اشتباه است.' });
+  }
+
+  adminLoginAttempts.delete(clientKey);
   req.session.isAdmin = true;
   res.json({ ok: true });
 });

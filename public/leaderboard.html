@@ -6,7 +6,14 @@
 <title>لیدربورد</title>
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="user-page">
+  <img src="/champ-peek.png" class="champ-mascot" id="champMascot" alt="قهرمان مسابقه">
+<div class="scene-bg" aria-hidden="true">
+  <div class="scene-bg__image"></div>
+  <div class="scene-bg__spotlight"></div>
+  <div class="scene-bg__overlay"></div>
+</div>
+</div>
 <div class="wrap">
   <header class="top">
     <h1>لیدربورد</h1>
@@ -96,5 +103,7 @@ function escapeHtml(s) {
 render();
 refreshHandle = setInterval(render, 10000);
 </script>
+<script src="/scene-parallax.js"></script>
+<script src="/publicchamp-mascot.js"></script>
 </body>
 </html>

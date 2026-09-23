@@ -19,7 +19,13 @@
   .difficulty-hard { background: #881337; color: #fff1f2; border-color: #be123c; }
 </style>
 </head>
-<body>
+<body class="user-page">
+<div class="scene-bg" aria-hidden="true">
+  <div class="scene-bg__image"></div>
+  <div class="scene-bg__spotlight"></div>
+  <div class="scene-bg__overlay"></div>
+</div>
+</div>
 <div class="wrap">
   <header class="top">
     <div>
@@ -304,5 +310,6 @@ async function render() {
 
 render();
 </script>
+<script src="/scene-parallax.js"></script>
 </body>
 </html>

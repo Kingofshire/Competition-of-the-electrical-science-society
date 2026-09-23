@@ -6,10 +6,16 @@
 <title>ورود به مسابقه</title>
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-<div class="wrap" style="max-width:420px; padding-top:80px;">
+<body class="auth-page">
+<div class="scene-bg" aria-hidden="true">
+  <div class="scene-bg__image"></div>
+  <div class="scene-bg__spotlight"></div>
+  <div class="scene-bg__overlay"></div>
+</div>
+<a class="admin-tab" href="/admin.html">پنل ادمین</a>
+<div class="wrap" style="max-width:480px; padding-top:70px;">
   <header class="top" style="justify-content:center;">
-    <h1 id="pageTitle">مسابقه</h1>
+    <h1 id="pageTitle">مسابقه انجمن</h1>
   </header>
 
   <div class="card">
@@ -32,7 +38,6 @@
     </div>
   </div>
 
-  <p class="muted" style="text-align:center;">پنل ادمین؟ <a href="/admin.html" style="color:var(--accent2);">از اینجا</a></p>
 </div>
 
 <script>
@@ -53,8 +58,8 @@ function setMode(m) {
   mode = m;
   submitBtn.textContent = m === 'login' ? 'ورود' : 'ثبت‌نام و ورود';
   studentIdArea.style.display = m === 'login' ? 'none' : 'block';
-  tabLogin.style.opacity = m === 'login' ? 1 : 0.55;
-  tabRegister.style.opacity = m === 'register' ? 1 : 0.55;
+  tabLogin.classList.toggle('is-active', m === 'login');
+  tabRegister.classList.toggle('is-active', m === 'register');
   msg.style.display = 'none';
 }
 tabLogin.onclick = () => setMode('login');
@@ -123,5 +128,6 @@ fetch('/api/questions').catch(() => {}); // no-op warmup
     if (passwordInput) passwordInput.addEventListener('keydown', handleEnter);
   });
 </script>
+<script src="/scene-parallax.js"></script>
 </body>
 </html>
