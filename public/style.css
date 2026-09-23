@@ -34,6 +34,8 @@ body {
   background-color: #05081A;
   background-size: cover;
   background-position: center bottom;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .auth-page .card {
