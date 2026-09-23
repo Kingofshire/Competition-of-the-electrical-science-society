@@ -2,6 +2,7 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 const ExcelJS = require('exceljs');
 const store = require('./store');
 const judge = require('./judge');
@@ -11,6 +12,27 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'; // حتماً قبل از استقرار واقعی عوض کنید
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-before-deploying';
 const ENABLE_CODE_QUESTIONS = process.env.ENABLE_CODE_QUESTIONS === 'true';
+const PROFANITY_FILE = path.join(__dirname, 'profanity.json');
+
+function loadProfanityWords() {
+  try {
+    const words = JSON.parse(fs.readFileSync(PROFANITY_FILE, 'utf8'));
+    if (!Array.isArray(words) && words && typeof words === 'object') {
+      return Object.values(words)
+        .flat()
+        .map(word => String(word).trim())
+        .filter(Boolean);
+    }
+    return Array.isArray(words) ? words.map(word => String(word).trim()).filter(Boolean) : [];
+  } catch (error) {
+    console.error(`Could not load ${PROFANITY_FILE}: ${error.message}`);
+    return [];
+  }
+}
+
+const USERNAME_PROFANITY_WORDS = process.env.USERNAME_PROFANITY_WORDS
+  ? process.env.USERNAME_PROFANITY_WORDS.split(',').map(word => word.trim()).filter(Boolean)
+  : loadProfanityWords();
 const adminLoginAttempts = new Map();
 const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -40,6 +62,15 @@ function normalizeStudentId(value) {
     .trim()
     .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
     .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+}
+
+function maskUsername(value) {
+  let username = String(value || '').trim();
+  for (const word of USERNAME_PROFANITY_WORDS) {
+    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    username = username.replace(new RegExp(escapedWord, 'giu'), '*'.repeat(Array.from(word).length));
+  }
+  return username;
 }
 
 function publicQuestion(q) {
@@ -139,7 +170,9 @@ async function buildUsersWorkbook(data) {
 
 // ---------- ثبت‌نام / ورود ----------
 app.post('/api/register', async (req, res) => {
-  const { username, studentId, password } = req.body || {};
+  const { studentId, password } = req.body || {};
+  const username = maskUsername(req.body?.username);
+  const rawUsername = String(req.body?.username || '').trim();
   const normalizedStudentId = normalizeStudentId(studentId);
   if (!username || !password || username.length < 3 || password.length < 4) {
     return res.status(400).json({ error: 'نام کاربری حداقل ۳ کاراکتر و رمز عبور حداقل ۴ کاراکتر باشد.' });
@@ -148,7 +181,7 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.' });
   }
   const data = store.read();
-  if (data.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+  if (data.users.find(u => maskUsername(u.username).toLowerCase() === username.toLowerCase() || u.username.toLowerCase() === rawUsername.toLowerCase())) {
     return res.status(400).json({ error: 'این نام کاربری قبلاً ثبت شده است.' });
   }
   if (data.users.find(u => u.studentId === normalizedStudentId)) {
@@ -167,9 +200,11 @@ app.post('/api/register', async (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
-  const { username, studentId, password } = req.body || {};
+  const { studentId, password } = req.body || {};
+  const rawUsername = String(req.body?.username || '').trim();
+  const username = maskUsername(req.body?.username);
   const data = store.read();
-  const user = data.users.find(u => u.username.toLowerCase() === (username || '').toLowerCase());
+  const user = data.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.username.toLowerCase() === rawUsername.toLowerCase());
   if (!user || !store.verifyPassword(password || '', user.salt, user.passwordHash)) {
     return res.status(400).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
   }

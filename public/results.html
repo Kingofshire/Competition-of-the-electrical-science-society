@@ -34,6 +34,9 @@ document.getElementById('logoutBtn').onclick = async () => {
 };
 
 async function render() {
+  window.location.replace('/quiz.html');
+  return;
+
   const meRes = await fetch('/api/me').then(r => r.json());
   if (!meRes.username) { window.location.href = '/index.html'; return; }
 

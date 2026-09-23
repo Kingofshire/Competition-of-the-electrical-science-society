@@ -45,6 +45,8 @@ ADMIN_PASSWORD="a strong pasword" SESSION_SECRET="a long and random string" npm 
 ENABLE_CODE_QUESTIONS="true"
 ```
 
+عبارت‌های نامناسب در نام کاربری به‌صورت خودکار با ستاره جایگزین می‌شوند. فهرست در `profanity.json` بر اساس کد زبان دسته‌بندی شده است؛ برای تغییر آن، گروه مربوط را ویرایش و سرور را restart کنید. در صورت نیاز می‌توان کل فهرست را با متغیر محیطی `USERNAME_PROFANITY_WORDS` نیز override کرد.
+
 ## ☁️ استقرار روی هاست/سرور (پیشنهادها)
 این اپ یک برنامه‌ی Node.js معمولیه، پس روی هر سرویسی که Node رو ساپورت کنه بالا میاد؛ مثلاً:
 - **Railway** یا **Render**: ریپو رو وصل کنید، متغیرهای محیطی `ADMIN_PASSWORD` و
