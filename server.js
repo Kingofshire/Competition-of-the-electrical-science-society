@@ -10,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'; // حتماً قبل از استقرار واقعی عوض کنید
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-before-deploying';
+const ENABLE_CODE_QUESTIONS = process.env.ENABLE_CODE_QUESTIONS === 'true';
 const adminLoginAttempts = new Map();
 const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -197,6 +198,7 @@ app.get('/api/questions', requireAuth, (req, res) => {
     return res.json({ title: data.config.title, questions: [], contest, progress });
   }
   const qs = [...data.questions]
+    .filter(q => ENABLE_CODE_QUESTIONS || q.type !== 'code')
     .sort((a, b) => (a.order || 0) - (b.order || 0))
     .map(q => {
       const pub = publicQuestion(q);
@@ -232,6 +234,9 @@ app.post('/api/submit', requireAuth, async (req, res) => {
   }
   const q = data.questions.find(q => q.id === questionId);
   if (!q) return res.status(404).json({ error: 'سوال پیدا نشد.' });
+  if (q.type === 'code' && !ENABLE_CODE_QUESTIONS) {
+    return res.status(403).json({ error: 'سوالات کدنویسی غیرفعال هستند.' });
+  }
 
   const username = req.session.username;
   const already = (data.submissions[username] || {})[questionId];
@@ -375,6 +380,9 @@ function validateQuestion(q) {
   const difficulties = ['easy', 'medium', 'hard'];
   if (!q.type || !q.title || !q.prompt || !q.points) {
     return 'فیلدهای type، title، prompt و points الزامی است.';
+  }
+  if (q.type === 'code' && !ENABLE_CODE_QUESTIONS) {
+    return 'سوالات کدنویسی فعلاً غیرفعال هستند.';
   }
   if (!difficulties.includes(q.difficulty)) {
     return 'سختی سوال باید آسان، متوسط یا سخت باشد.';

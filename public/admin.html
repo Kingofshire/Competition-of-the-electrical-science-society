@@ -45,7 +45,7 @@
       <label>نوع سوال</label>
       <select id="qType">
         <option value="mcq">تستی (چهارگزینه‌ای)</option>
-        <option value="code">کدنویسی</option>
+        <option value="code" disabled>کدنویسی (غیرفعال)</option>
       </select>
       <label>سختی سوال</label>
       <select id="qDifficulty">
@@ -58,7 +58,7 @@
       <label>متن کامل سوال</label>
       <textarea id="qPrompt" style="direction:rtl; text-align:right; font-family:inherit;" placeholder="توضیح کامل سوال..."></textarea>
       <label>امتیاز</label>
-      <input type="number" id="qPoints" value="10">
+      <input type="number" id="qPoints" value="1">
 
       <div id="mcqFields">
         <label>گزینه‌ها (هر خط یک گزینه)</label>
@@ -313,7 +313,7 @@ document.getElementById('addQBtn').onclick = async () => {
     difficulty: document.getElementById('qDifficulty').value,
     title: document.getElementById('qTitle').value.trim(),
     prompt: document.getElementById('qPrompt').value.trim(),
-    points: Number(document.getElementById('qPoints').value) || 10
+    points: Number(document.getElementById('qPoints').value) || 1
   };
   const msg = document.getElementById('qMsg');
   if (type === 'mcq') {
@@ -388,7 +388,7 @@ async function editQ(id) {
   document.getElementById('qDifficulty').value = question.difficulty || 'medium';
   document.getElementById('qTitle').value = question.title || '';
   document.getElementById('qPrompt').value = question.prompt || '';
-  document.getElementById('qPoints').value = question.points || 10;
+  document.getElementById('qPoints').value = question.points || 1;
   document.getElementById('qType').dispatchEvent(new Event('change'));
   if (question.type === 'mcq') {
     document.getElementById('qOptions').value = (question.options || []).join('\n');

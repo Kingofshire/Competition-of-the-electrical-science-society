@@ -40,6 +40,11 @@ npm start
 ADMIN_PASSWORD="a strong pasword" SESSION_SECRET="a long and random string" npm start
 ```
 
+**سوالات کدنویسی به‌صورت پیش‌فرض غیرفعال هستند. برای فعال‌کردن آن‌ها متغیر محیطی زیر را نیز تنظیم کنید**:
+```bash
+ENABLE_CODE_QUESTIONS="true"
+```
+
 ## ☁️ استقرار روی هاست/سرور (پیشنهادها)
 این اپ یک برنامه‌ی Node.js معمولیه، پس روی هر سرویسی که Node رو ساپورت کنه بالا میاد؛ مثلاً:
 - **Railway** یا **Render**: ریپو رو وصل کنید، متغیرهای محیطی `ADMIN_PASSWORD` و
