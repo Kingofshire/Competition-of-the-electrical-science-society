@@ -47,6 +47,11 @@ const tabRegister = document.getElementById('tabRegister');
 const submitBtn = document.getElementById('submitBtn');
 const msg = document.getElementById('msg');
 const studentIdArea = document.getElementById('studentIdArea');
+const studentIdInput = document.getElementById('studentId');
+
+studentIdInput.addEventListener('input', () => {
+  studentIdInput.classList.toggle('digits-fa', /[۰-۹]/.test(studentIdInput.value));
+});
 
 function normalizeStudentId(value) {
   return value.trim()

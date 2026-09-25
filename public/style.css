@@ -1,3 +1,52 @@
+@font-face {
+  font-family: 'Shabnam';
+  src: url('/fonts/Shabnam.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  src: url('/fonts/Shabnam-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  src: url('/fonts/Shabnam-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  src: url('/fonts/Shabnam-Bold.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ShabnamDigits';
+  src: url('/fonts/digits/Shabnam-FD.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ShabnamDigits';
+  src: url('/fonts/digits/Shabnam-Medium-FD.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ShabnamDigits';
+  src: url('/fonts/digits/Shabnam-Bold-FD.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
 :root {
   /* پالت سرمه‌ای و طلایی مسابقه */
   --bg: #05081A;
@@ -22,12 +71,13 @@
 
 body {
   margin: 0;
-  font-family: 'Vazirmatn', Tahoma, sans-serif;
+  font-family: 'Shabnam', Tahoma, sans-serif;
   background-color: var(--bg);
   color: var(--text);
   direction: rtl;
   min-height: 100vh;
   letter-spacing: -0.02em;
+  font-weight: 400;
 }
 
 .auth-page {
@@ -78,7 +128,7 @@ body {
 
 .auth-page .muted a {
   color: rgba(212, 175, 55, 0.82) !important;
-  font-weight: 500;
+  font-weight: 400;
   text-decoration: none;
 }
 
@@ -100,7 +150,7 @@ body {
   background: rgba(13, 21, 51, 0.92);
   color: rgba(244, 244, 245, 0.82);
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: 400;
   text-decoration: none;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
@@ -175,7 +225,7 @@ nav a:hover, nav button:hover {
 .card h2, .card h3 { 
   margin-top: 0; 
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 20px;
 }
 
@@ -184,7 +234,7 @@ label {
   margin: 16px 0 8px; 
   color: var(--muted); 
   font-size: 0.85rem; 
-  font-weight: 500;
+  font-weight: 400;
 }
 
 
@@ -198,6 +248,10 @@ input[type=text], input[type=password], input[type=number], input[type=datetime-
   font-family: inherit;
   font-size: 0.9rem;
   outline: none;
+}
+
+.digits-fa {
+  font-family: 'ShabnamDigits', 'Shabnam', Tahoma, sans-serif !important;
 }
 input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, input[type=datetime-local]:focus, textarea:focus, select:focus {
   border-color: rgba(var(--accent-rgb), 0.5);
@@ -220,7 +274,7 @@ button.primary, button.btn {
   border: 1px solid var(--accent);
   background: var(--accent); 
   color: var(--bg);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.9rem;
@@ -268,6 +322,32 @@ button:disabled {
 .badge.code { background: rgba(56, 189, 248, 0.06); color: var(--accent2); border-color: rgba(56, 189, 248, 0.15); }
 .badge.mcq { background: rgba(255, 255, 255, 0.06); color: var(--text); border-color: rgba(255, 255, 255, 0.15); }
 
+.contest-summary {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.contest-finished-card h2 {
+  font-size: 1.35rem;
+}
+
+.contest-summary .badge.good {
+  padding: 7px 13px;
+  font-size: 0.9rem;
+  background: rgba(16, 185, 129, 0.1);
+  color: #8ee0bd;
+  border-color: rgba(16, 185, 129, 0.22);
+}
+
+.contest-summary .badge.bad {
+  padding: 7px 13px;
+  font-size: 0.9rem;
+  background: rgba(239, 68, 68, 0.08);
+  color: #f0a1a1;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
 
 .option-row {
   display: flex;
@@ -303,7 +383,7 @@ th {
 }
 tr.me { 
   background: rgba(255, 255, 255, 0.03); 
-  font-weight: 600;
+  font-weight: 700;
 }
 .rank { color: var(--muted); width: 40px; font-weight: 700; }
 
@@ -335,6 +415,10 @@ pre.output {
 }
 .q-item:last-child { 
   border-bottom: none; 
+}
+
+.q-item > h3 {
+  margin-top: 18px;
 }
 
 
@@ -428,7 +512,7 @@ pre.output {
 
 .auth-page header.top h1 {
   font-size: clamp(2rem, 7vw, 2.5rem);
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1.35;
   letter-spacing: 0;
   background: linear-gradient(135deg, #D4AF37 0%, #f4e2a1 45%, #D4AF37 100%);
@@ -464,7 +548,7 @@ pre.output {
 .auth-page #tabRegister {
   padding: 16px 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   margin-top: 0;
 }
 
@@ -487,4 +571,20 @@ pre.output {
   .auth-page header.top h1 {
     padding-bottom: 12px;
   }
+}
+
+
+/* ===== مسکات ویدیویی گوشه‌ی صفحه سوالات ===== */
+.quiz-mascot {
+  position: fixed;
+  left: 6px;
+  bottom: 0;
+  width: 190px;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: lighten; /* بک‌گراند مشکی ویدیو رو محو می‌کنه */
+}
+
+@media (max-width: 640px) {
+  .quiz-mascot { width: 130px; }
 }

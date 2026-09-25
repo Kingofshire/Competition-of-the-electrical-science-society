@@ -20,6 +20,9 @@
 </style>
 </head>
 <body class="user-page">
+  <video class="quiz-mascot" autoplay muted loop playsinline>
+    <source src="/mascot-wave.mp4" type="video/mp4">
+  </video>
 <div class="scene-bg" aria-hidden="true">
   <div class="scene-bg__image"></div>
   <div class="scene-bg__spotlight"></div>
@@ -172,9 +175,29 @@ async function submitAnswer(questionId, answer, resultEl, btn, onSuccess) {
   }
 }
 
-function showResultsOnly(message) {
-  document.getElementById('contestStatus').innerHTML = `<div class="card"><h2>${message}</h2></div>`;
+async function showResultsOnly(message) {
+  const status = document.getElementById('contestStatus');
+  status.innerHTML = `<div class="card"><h2>${message}</h2><p class="muted">در حال محاسبه نتیجه...</p></div>`;
   document.getElementById('list').innerHTML = '';
+
+  try {
+    const response = await fetch('/api/results');
+    if (!response.ok) throw new Error('نتیجه در دسترس نیست.');
+    const data = await response.json();
+    const correctCount = data.details.filter(item => item.submitted && item.correct).length;
+    const incorrectCount = data.details.filter(item => item.submitted && !item.correct).length;
+    status.innerHTML = `
+      <div class="card contest-finished-card">
+        <h2>${message}</h2>
+        <div class="contest-summary" aria-label="خلاصه نتیجه">
+          <span class="badge good">درست: ${correctCount}</span>
+          <span class="badge bad">غلط: ${incorrectCount}</span>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    status.innerHTML = `<div class="card"><h2>${message}</h2></div>`;
+  }
 }
 
 function startCountdown(endsAt) {
