@@ -13,6 +13,7 @@
   .code-toolbar button { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
   .code-toolbar button:hover { color: var(--text); border-color: var(--accent); }
   #contestStatus { margin-bottom: 16px; }
+  .tick-toggle { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 8px; padding: 5px 9px; cursor: pointer; font: inherit; font-size: .82rem; }
   header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-top: 12px; }
   .difficulty-easy { background: #047857; color: #ecfdf5; border-color: #10b981; }
   .difficulty-medium { background: #a16207; color: #fefce8; border-color: #eab308; }
@@ -37,6 +38,7 @@
     </div>
     <nav>
       <span class="muted" id="whoami"></span>
+      <button class="tick-toggle" id="tickToggle" type="button" aria-pressed="false" title="صدای تیک">🔊 صدا</button>
       <a href="/leaderboard.html" id="leaderboardLink">لیدربورد</a>
       <button id="logoutBtn">خروج</button>
     </nav>
@@ -87,6 +89,7 @@
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/ruby/ruby.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="/tick-sound.js"></script>
 <script>
 const CM_MODE = {
   c: 'text/x-csrc',
@@ -104,6 +107,18 @@ const CM_MODE = {
 const draftAnswers = new Map();
 const questionEditors = new Map();
 let finalSubmitting = false;
+const tickSound = window.quizTickSound;
+const tickToggle = document.getElementById('tickToggle');
+function updateTickToggle() {
+  const muted = tickSound.isMuted();
+  tickToggle.textContent = muted ? '🔇 بی‌صدا' : '🔊 صدا';
+  tickToggle.setAttribute('aria-pressed', String(muted));
+  tickToggle.title = muted ? 'روشن کردن صدای تیک' : 'خاموش کردن صدای تیک';
+}
+tickToggle.onclick = () => { tickSound.setMuted(!tickSound.isMuted()); updateTickToggle(); };
+document.addEventListener('tick-sound-state', updateTickToggle);
+updateTickToggle();
+window.addEventListener('pagehide', () => tickSound.destroy(), { once: true });
 
 async function me() {
   const r = await fetch('/api/me').then(r => r.json());
@@ -156,6 +171,7 @@ async function submitAllAnswers() {
   }
   if (!window.confirm('پاسخ‌ها ثبت نهایی شوند؟ بعد از ثبت امکان تغییر آن‌ها وجود ندارد.')) return;
 
+  tickSound.stop();
   const finalSubmitBtn = document.getElementById('finalSubmitBtn');
   finalSubmitting = true;
   finalSubmitBtn.disabled = true;
@@ -187,6 +203,7 @@ async function submitAllAnswers() {
   finalSubmitBtn.disabled = hasError;
   finalSubmitBtn.textContent = hasError ? 'تلاش دوباره برای ثبت پاسخ‌ها' : 'پاسخ‌ها ثبت شد';
   if (!hasError) {
+    tickSound.stop();
     draftAnswers.clear();
     await updateHeaderProgress();
   }
@@ -261,10 +278,14 @@ async function showResultsOnly(message) {
 
 function startCountdown(endsAt) {
   const status = document.getElementById('contestStatus');
+  let initialRemaining = null;
   const tick = () => {
     const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now());
+    if (initialRemaining === null) initialRemaining = remaining;
+    tickSound.setProgress(initialRemaining ? remaining / initialRemaining : 0);
     const totalSeconds = Math.ceil(remaining / 1000);
     if (totalSeconds <= 0) {
+      tickSound.stop();
       showResultsOnly('زمان مسابقه تمام شده است.');
       return;
     }
@@ -300,15 +321,24 @@ async function render() {
     document.getElementById('startContestBtn').onclick = async () => {
       const btn = document.getElementById('startContestBtn');
       btn.disabled = true;
-      const response = await fetch('/api/contest/start', { method: 'POST' });
-      const result = await response.json();
-      if (!response.ok) {
-        document.getElementById('startMsg').textContent = result.error || 'خطا در شروع مسابقه';
+      tickSound.start();
+      try {
+        const response = await fetch('/api/contest/start', { method: 'POST' });
+        const result = await response.json();
+        if (!response.ok) {
+          tickSound.stop();
+          document.getElementById('startMsg').textContent = result.error || 'خطا در شروع مسابقه';
+          document.getElementById('startMsg').style.display = 'block';
+          btn.disabled = false;
+          return;
+        }
+        render();
+      } catch (error) {
+        tickSound.stop();
+        document.getElementById('startMsg').textContent = 'خطا در شروع مسابقه';
         document.getElementById('startMsg').style.display = 'block';
         btn.disabled = false;
-        return;
       }
-      render();
     };
     return;
   }

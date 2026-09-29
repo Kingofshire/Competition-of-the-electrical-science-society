@@ -13,6 +13,7 @@
   <div class="scene-bg__overlay"></div>
 </div>
 <a class="admin-tab" href="/admin.html">پنل ادمین</a>
+<button class="btn secondary" id="musicToggle" type="button" aria-pressed="false" style="position:fixed; inset-inline-end:14px; bottom:14px; z-index:20; padding:6px 10px; font-size:.82rem;">🔊 موسیقی</button>
 <div class="wrap" style="max-width:480px; padding-top:70px;">
   <header class="top" style="justify-content:center;">
     <h1 id="pageTitle">مسابقه انجمن</h1>
@@ -40,7 +41,22 @@
 
 </div>
 
+<script src="/bg-music.js"></script>
 <script>
+const backgroundMusic = window.authBackgroundMusic;
+const musicToggle = document.getElementById('musicToggle');
+function updateMusicToggle() {
+  const muted = backgroundMusic.isMuted();
+  musicToggle.textContent = muted ? '🔇 بی‌صدا' : '🔊 موسیقی';
+  musicToggle.setAttribute('aria-pressed', String(muted));
+  musicToggle.title = muted ? 'روشن کردن موسیقی' : 'خاموش کردن موسیقی';
+}
+musicToggle.onclick = () => { backgroundMusic.setMuted(!backgroundMusic.isMuted()); updateMusicToggle(); };
+document.addEventListener('bg-music-state', updateMusicToggle);
+updateMusicToggle();
+void backgroundMusic.play();
+window.addEventListener('pagehide', () => backgroundMusic.destroy(), { once: true });
+
 let mode = 'login';
 const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
@@ -73,7 +89,10 @@ setMode('login');
 
 async function checkSession() {
   const r = await fetch('/api/me').then(r => r.json());
-  if (r.username) window.location.href = '/quiz.html';
+  if (r.username) {
+    await backgroundMusic.stop(160);
+    window.location.href = '/quiz.html';
+  }
 }
 checkSession();
 
@@ -101,6 +120,7 @@ submitBtn.onclick = async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'خطا');
+    await backgroundMusic.stop(180);
     window.location.href = '/quiz.html';
   } catch (e) {
     msg.textContent = e.message;
