@@ -421,6 +421,12 @@ pre.output {
   margin-top: 18px;
 }
 
+.final-submit {
+  display: block;
+  width: 100%;
+  margin: 8px 0 24px;
+}
+
 
 .scene-bg {
   position: fixed;
@@ -497,7 +503,13 @@ pre.output {
 .champ-mascot.is-peeking { animation: champGlow 4s ease-in-out infinite; }
 
 @media (max-width: 900px) {
-  .champ-mascot { display: none; }
+  .champ-mascot {
+    display: block;
+    width: 120px;
+    right: 8px;
+    bottom: 12px;
+    z-index: 2;
+  }
 }
 
 
@@ -577,14 +589,18 @@ pre.output {
 /* ===== مسکات ویدیویی گوشه‌ی صفحه سوالات ===== */
 .quiz-mascot {
   position: fixed;
-  left: 6px;
+  left: 18px;
   bottom: 0;
-  width: 190px;
+  width: 210px;
+  aspect-ratio: 340 / 360;
   z-index: 3;
   pointer-events: none;
   mix-blend-mode: lighten; /* بک‌گراند مشکی ویدیو رو محو می‌کنه */
 }
 
 @media (max-width: 640px) {
-  .quiz-mascot { width: 130px; }
+  .quiz-mascot {
+    left: 12px;
+    width: 130px;
+  }
 }

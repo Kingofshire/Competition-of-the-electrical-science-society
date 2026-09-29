@@ -8,7 +8,17 @@
   function position() {
     const cardRect = card.getBoundingClientRect();
     const mascotWidth = el.offsetWidth;
-    el.style.left = (cardRect.left + OVERLAP - mascotWidth) + 'px';
+    if (window.innerWidth <= 900) {
+      el.style.left = 'auto';
+      el.style.right = '8px';
+      el.style.top = 'auto';
+      el.style.bottom = '12px';
+      return;
+    }
+    const left = Math.max(8, cardRect.left + OVERLAP - mascotWidth);
+    el.style.left = left + 'px';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
     el.style.top = (cardRect.top + 24) + 'px';
   }
 
