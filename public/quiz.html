@@ -93,6 +93,7 @@
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/ruby/ruby.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="/audio-blob.js"></script>
 <script src="/tick-sound.js"></script>
 <script>
 const CM_MODE = {
@@ -119,10 +120,10 @@ function updateTickToggle() {
   tickToggle.setAttribute('aria-pressed', String(muted));
   tickToggle.title = muted ? 'روشن کردن صدای تیک' : 'خاموش کردن صدای تیک';
 }
-tickToggle.onclick = () => { tickSound.setMuted(!tickSound.isMuted()); updateTickToggle(); };
+tickToggle.onclick = () => { tickSound.toggleMuted(); updateTickToggle(); };
 document.addEventListener('tick-sound-state', updateTickToggle);
 updateTickToggle();
-window.addEventListener('pagehide', () => tickSound.destroy(), { once: true });
+window.addEventListener('pagehide', () => tickSound.pause());
 
 async function me() {
   const r = await fetch('/api/me').then(r => r.json());
@@ -280,13 +281,15 @@ async function showResultsOnly(message) {
   }
 }
 
-function startCountdown(endsAt) {
+function startCountdown(endsAt, startedAt) {
   const status = document.getElementById('contestStatus');
-  let initialRemaining = null;
+  const endTimestamp = new Date(endsAt).getTime();
+  const startTimestamp = new Date(startedAt).getTime();
+  const contestDuration = endTimestamp - startTimestamp;
+    tickSound.start(); // Start the tick sound
   const tick = () => {
-    const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now());
-    if (initialRemaining === null) initialRemaining = remaining;
-    tickSound.setProgress(initialRemaining ? remaining / initialRemaining : 0);
+    const remaining = Math.max(0, endTimestamp - Date.now());
+    tickSound.setProgress(Number.isFinite(contestDuration) && contestDuration > 0 ? remaining / contestDuration : 1);
     const totalSeconds = Math.ceil(remaining / 1000);
     if (totalSeconds <= 0) {
       tickSound.stop();
@@ -351,7 +354,7 @@ async function render() {
     showResultsOnly('زمان مسابقه تمام شده است.');
     return;
   }
-  startCountdown(data.contest.endsAt);
+  startCountdown(data.contest.endsAt, data.contest.startedAt);
 
   if (data.questions.length === 0) {
     list.innerHTML = '<div class="card muted">هنوز سوالی اضافه نشده است.</div>';
@@ -438,6 +441,9 @@ async function render() {
 }
 
 render();
+window.addEventListener('pageshow', event => {
+  if (event.persisted) render();
+});
 </script>
 <script src="/scene-parallax.js"></script>
 </body>

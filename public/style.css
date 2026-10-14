@@ -251,6 +251,18 @@ nav a:hover, nav button:hover {
   color: var(--text); 
 }
 
+.tick-toggle {
+  margin: 0; /* Reset margin for tick toggle button */
+  padding: 5px 9px; /* Add padding for better touch targets */
+  border: 1px solid var(--border); /* Border styling */
+  border-radius: 8px; /* Rounded corners */
+  background: transparent; /* Transparent background */
+  color: var(--muted); /* Muted text color */
+  font: inherit; /* Inherit font styles */
+  font-size: 0.82rem; /* Font size */
+  cursor: pointer; /* Pointer cursor on hover */
+}
+
 
 .card {
   background: var(--card);

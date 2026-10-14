@@ -23,6 +23,7 @@
     <h1>لیدربورد</h1>
     <nav>
       <a href="/quiz.html">سوالات</a>
+      <button class="tick-toggle" id="tickToggle" type="button" aria-pressed="false" title="صدای تیک">🔊 صدا</button>
       <button id="logoutBtn">خروج</button>
     </nav>
   </header>
@@ -30,6 +31,8 @@
   <div class="card" id="content">در حال بارگذاری...</div>
 </div>
 
+<script src="/audio-blob.js"></script>
+<script src="/tick-sound.js"></script>
 <script>
 document.getElementById('logoutBtn').onclick = async () => {
   await fetch('/api/logout', { method: 'POST' });
@@ -39,6 +42,68 @@ document.getElementById('logoutBtn').onclick = async () => {
 let myUsername = null;
 let timerHandle = null;
 let refreshHandle = null;
+let contestAudioTimer = null;
+let contestAudioDeadline = null;
+const tickSound = window.quizTickSound;
+const tickToggle = document.getElementById('tickToggle');
+
+function updateTickToggle() {
+  const muted = tickSound.isMuted();
+  tickToggle.textContent = muted ? '🔇 بی‌صدا' : '🔊 صدا';
+  tickToggle.setAttribute('aria-pressed', String(muted));
+  tickToggle.title = muted ? 'روشن کردن صدای تیک' : 'خاموش کردن صدای تیک';
+}
+
+tickToggle.onclick = () => {
+  tickSound.toggleMuted();
+  updateTickToggle();
+};
+document.addEventListener('tick-sound-state', updateTickToggle);
+window.addEventListener('pagehide', () => tickSound.pause());
+window.addEventListener('pageshow', event => {
+  if (event.persisted) void syncContestTick(); // Sync contest tick sound on page show
+});
+
+async function syncContestTick() {
+  try {
+    const response = await fetch('/api/questions');
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!data.contest.started || data.contest.expired) {
+      tickSound.stop();
+      if (contestAudioTimer) clearInterval(contestAudioTimer);
+      contestAudioTimer = null;
+      contestAudioDeadline = null;
+      updateTickToggle();
+      return;
+    }
+
+    const startTime = new Date(data.contest.startedAt).getTime();
+    const endTime = new Date(data.contest.endsAt).getTime();
+    if (contestAudioDeadline !== endTime) {
+      if (contestAudioTimer) clearInterval(contestAudioTimer);
+      contestAudioDeadline = endTime;
+      const updateProgress = () => {
+        const remaining = Math.max(0, endTime - Date.now());
+        tickSound.setProgress(Number.isFinite(startTime) && endTime > startTime ? remaining / (endTime - startTime) : 1);
+        if (remaining <= 0) {
+          tickSound.stop();
+          clearInterval(contestAudioTimer);
+          contestAudioTimer = null;
+        }
+      };
+      updateProgress();
+      contestAudioTimer = setInterval(updateProgress, 1000);
+    }
+
+    tickSound.start();
+  const remaining = Math.max(0, endTime - Date.now());
+  tickSound.setProgress(Number.isFinite(startTime) && endTime > startTime ? remaining / (endTime - startTime) : 1);
+    updateTickToggle();
+  } catch (error) {
+    // Optional timer audio must not interfere with the leaderboard.
+  }
+}
 
 function fmtRemaining(ms) {
   if (ms <= 0) return '۰۰:۰۰:۰۰';
@@ -53,6 +118,7 @@ async function render() {
   const meRes = await fetch('/api/me').then(r => r.json());
   if (!meRes.username) { window.location.href = '/index.html'; return; }
   myUsername = meRes.username;
+  await syncContestTick();
 
   const data = await fetch('/api/leaderboard').then(r => r.json());
   const content = document.getElementById('content');

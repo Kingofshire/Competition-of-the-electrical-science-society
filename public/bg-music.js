@@ -1,11 +1,12 @@
 // One background track for the login/register page, shared across its mode tabs.
 (function (global) {
-  const MUSIC_URL = '/music/Instrumental%20Hook%20(1).mp3';
+  const MUSIC_TRACK = 'background';
   const VOLUME = 0.35;
   const STORAGE_KEY = 'authBackgroundMusicMuted';
 
   function createBackgroundMusic() {
     let audio = null;
+    let audioLoadPromise = null;
     let muted = false;
     let unavailable = false;
     let blocked = false;
@@ -29,8 +30,8 @@
     function setup() {
       if (audio || unavailable || typeof window === 'undefined' || typeof Audio === 'undefined') return audio;
       try {
-        audio = new Audio(MUSIC_URL);
-        audio.preload = 'auto';
+        audio = new Audio();
+        audio.preload = 'none';
         audio.loop = true;
         audio.volume = VOLUME;
         audio.onerror = () => {
@@ -40,7 +41,16 @@
           notifyState();
           audio.pause();
         };
-        audio.load();
+        audioLoadPromise = global.loadAudioSource(MUSIC_TRACK).then(sourceUrl => {
+          audio.src = sourceUrl;
+          audio.load();
+          return audio;
+        }).catch(error => {
+          unavailable = true;
+          console.warn('Background music could not be loaded:', error);
+          notifyState();
+          return null;
+        });
       } catch (error) {
         unavailable = true;
         console.warn('Background music is unavailable:', error);
@@ -49,13 +59,38 @@
       return audio;
     }
 
-    async function play() {
+    function handlePlayFailure(error) {
+      if (!enabled || muted) return;
+      if (error && error.name === 'NotSupportedError') {
+        unavailable = true;
+        console.warn('Background music format is not supported:', error);
+        notifyState();
+        return;
+      }
+      blocked = true;
+      wasPlayingBeforeHidden = false;
+      notifyState();
+      if (!retryListener && typeof window !== 'undefined') {
+        retryListener = () => { removeRetry(); void play(); };
+        ['pointerdown', 'keydown', 'touchstart'].forEach(type => window.addEventListener(type, retryListener, { once: true }));
+      }
+    }
+
+    function play() {
       const player = setup();
-      if (!player || !enabled || unavailable || muted || document.visibilityState === 'hidden') return;
+      if (!player || !enabled || unavailable || muted || document.visibilityState === 'hidden') return Promise.resolve();
       if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
       player.volume = VOLUME;
-      try {
-        await player.play();
+      const requestPlayback = () => {
+        if (!player.src || !enabled || muted || unavailable) return;
+        let playPromise;
+        try {
+          playPromise = player.play();
+        } catch (error) {
+          handlePlayFailure(error);
+          return;
+        }
+        Promise.resolve(playPromise).then(() => {
         if (!enabled || muted) {
           player.pause();
           player.currentTime = 0;
@@ -65,23 +100,15 @@
         wasPlayingBeforeHidden = true;
         removeRetry();
         notifyState();
-      } catch (error) {
-        if (!enabled || muted) return;
-        if (error && error.name === 'NotSupportedError') {
-          unavailable = true;
-          console.warn('Background music format is not supported:', error);
-          notifyState();
-          return;
-        }
-        // Autoplay can be denied; wait for one real user gesture and retry.
-        blocked = true;
-        wasPlayingBeforeHidden = false;
-        notifyState();
-        if (!retryListener && typeof window !== 'undefined') {
-          retryListener = () => { removeRetry(); void play(); };
-          ['pointerdown', 'keydown', 'touchstart'].forEach(type => window.addEventListener(type, retryListener, { once: true }));
-        }
+        }).catch(handlePlayFailure);
+      };
+
+      if (player.src) {
+        requestPlayback();
+        return Promise.resolve();
       }
+
+      return audioLoadPromise ? audioLoadPromise.then(requestPlayback) : Promise.resolve();
     }
 
     function onVisibilityChange() {
@@ -143,10 +170,16 @@
         notifyState();
         return muted;
       },
+      toggleMuted() {
+        const shouldUnmute = muted || blocked || unavailable;
+        this.setMuted(!shouldUnmute);
+        return !shouldUnmute;
+      },
       isMuted() { return muted || unavailable || blocked; },
       destroy() {
         void this.stop();
         if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange);
+        global.releaseAudioSources();
       }
     };
     setup(); // Preload before trying autoplay on page load.

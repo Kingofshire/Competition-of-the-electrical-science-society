@@ -44,6 +44,26 @@ app.use(session({
   saveUninitialized: false,
   cookie: { maxAge: 1000 * 60 * 60 * 12 } // ۱۲ ساعت
 }));
+
+const audioAssets = {
+  background: path.join(__dirname, 'public', 'music', 'Instrumental Hook (1).mp3'),
+  tick: path.join(__dirname, 'public', 'music', 'tick.mp3')
+};
+
+app.get('/media/audio/:track', (req, res) => {
+  const filePath = audioAssets[req.params.track];
+  if (!filePath) return res.sendStatus(404);
+
+  res.set({
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': 'inline',
+    'Cache-Control': 'public, max-age=3600'
+  });
+  fs.createReadStream(filePath)
+    .on('error', () => res.destroy())
+    .pipe(res);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- کمک‌تابع‌ها ----------
@@ -113,10 +133,10 @@ function isLeaderboardLocked(data) {
 function getContestState(data, username) {
   const user = data.users.find(u => u.username === username);
   if (!user || !user.contestStartedAt || !user.contestEndsAt) {
-    return { started: false, expired: false, endsAt: null };
+    return { started: false, expired: false, startedAt: null, endsAt: null };
   }
   const expired = Date.now() >= new Date(user.contestEndsAt).getTime();
-  return { started: true, expired, endsAt: user.contestEndsAt };
+  return { started: true, expired, startedAt: user.contestStartedAt, endsAt: user.contestEndsAt };
 }
 
 async function buildLeaderboardWorkbook(data, entries) {

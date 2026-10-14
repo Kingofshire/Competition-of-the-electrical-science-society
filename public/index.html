@@ -45,6 +45,7 @@
 
 </div>
 
+<script src="/audio-blob.js"></script>
 <script src="/bg-music.js"></script>
 <script>
 const backgroundMusic = window.authBackgroundMusic;
@@ -55,7 +56,7 @@ function updateMusicToggle() {
   musicToggle.setAttribute('aria-pressed', String(muted));
   musicToggle.title = muted ? 'روشن کردن موسیقی' : 'خاموش کردن موسیقی';
 }
-musicToggle.onclick = () => { backgroundMusic.setMuted(!backgroundMusic.isMuted()); updateMusicToggle(); };
+musicToggle.onclick = () => { backgroundMusic.toggleMuted(); updateMusicToggle(); };
 document.addEventListener('bg-music-state', updateMusicToggle);
 updateMusicToggle();
 void backgroundMusic.play();
