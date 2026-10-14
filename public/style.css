@@ -166,6 +166,45 @@ body {
   background-position: center bottom;
 }
 
+.page-logos {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-logos img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: transparent;
+}
+
+.user-page header.top {
+  top: 72px;
+}
+
+@media (max-width: 640px) {
+  .page-logos {
+    top: 8px;
+    right: 8px;
+    gap: 5px;
+  }
+
+  .page-logos img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .user-page header.top {
+    top: 56px;
+  }
+}
+
 .wrap {
   max-width: 800px; /* فشرده تر و شکیلتر شدن باکس اصلی */
   margin: 0 auto;
