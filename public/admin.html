@@ -104,20 +104,15 @@
     </div>
 
     <div class="card">
-      <h2>🎓 شماره‌های دانشجویی مجاز</h2>
-      <p class="muted">شماره دانشجویی ۸ رقمی. فقط شماره‌های این فهرست می‌توانند ثبت‌نام کنند.</p>
-      <label>افزودن شماره جدید</label>
-      <div style="display:flex; gap:8px; align-items:flex-start;">
-        <input type="text" id="newStudentIdInput" inputmode="numeric" maxlength="8" placeholder="مثلاً 40123456" style="flex:1;">
-        <button class="secondary btn" id="addStudentIdBtn" type="button">افزودن</button>
-      </div>
-      <div class="success" id="newStudentIdMsg" style="display:none;"></div>
-      <div class="error" id="newStudentIdError" style="display:none;"></div>
-      <label style="margin-top:14px;">ویرایش گروهی شماره‌ها</label>
-      <textarea id="studentIdsInput" rows="8" inputmode="numeric" placeholder="40123456&#10;40123457"></textarea>
-      <button class="primary" id="saveStudentIdsBtn">ذخیره شماره‌ها</button>
-      <div class="success" id="studentIdsMsg" style="display:none;"></div>
-      <div class="error" id="studentIdsError" style="display:none;"></div>
+      <h2>🎟️ کدهای ثبت‌نام</h2>
+      <p class="muted" id="registrationCodeCounts">در حال بارگذاری...</p>
+      <label>کدهای ثبت‌نام (هر خط یک کد ۵ رقمی)</label>
+      <textarea id="registrationCodesInput" rows="8" inputmode="numeric" placeholder="12345&#10;67890"></textarea>
+      <button class="primary" id="saveRegistrationCodesBtn">افزودن کدها</button>
+      <button class="secondary btn" id="revokeRegistrationCodesBtn" type="button">ابطال کدهای استفاده‌نشده</button>
+      <p class="muted">کدهای مصرف‌شده قابل ابطال نیستند. کدها در پنل نمایش داده نمی‌شوند.</p>
+      <div class="success" id="registrationCodesMsg" style="display:none;"></div>
+      <div class="error" id="registrationCodesError" style="display:none;"></div>
     </div>
 
     <div class="card">
@@ -209,7 +204,7 @@ async function showPanel() {
   adminNav.style.display = 'block';
   await loadConfig();
   await loadQuestions();
-  await loadStudentIds();
+  await loadRegistrationCodes();
   await loadLeaderboard();
   await loadUsers();
   if (adminRefreshTimer) clearInterval(adminRefreshTimer);
@@ -219,64 +214,46 @@ async function showPanel() {
   }, 5000);
 }
 
-async function loadStudentIds() {
-  const r = await fetch('/api/admin/student-ids').then(r => r.json());
-  document.getElementById('studentIdsInput').value = (r.studentIds || []).join('\n');
+async function loadRegistrationCodes() {
+  const r = await fetch('/api/admin/registration-codes').then(r => r.json());
+  document.getElementById('registrationCodeCounts').textContent =
+    `کدهای قابل‌استفاده: ${r.availableCount} — کدهای مصرف‌شده: ${r.usedCount}`;
 }
 
-document.getElementById('addStudentIdBtn').onclick = async () => {
-  const input = document.getElementById('newStudentIdInput');
-  const success = document.getElementById('newStudentIdMsg');
-  const error = document.getElementById('newStudentIdError');
+async function updateRegistrationCodes(method) {
+  const input = document.getElementById('registrationCodesInput');
+  const success = document.getElementById('registrationCodesMsg');
+  const error = document.getElementById('registrationCodesError');
   success.style.display = 'none';
   error.style.display = 'none';
-  const studentId = input.value.trim();
-  if (!studentId) {
-    error.textContent = 'شماره دانشجویی را وارد کنید.';
+  const registrationCodes = input.value.split(/\r?\n/).map(code => code.trim()).filter(Boolean);
+  if (!registrationCodes.length) {
+    error.textContent = 'حداقل یک کد را وارد کنید.';
     error.style.display = 'block';
     return;
   }
-  const res = await fetch('/api/admin/student-ids/add', {
-    method: 'POST',
+  const res = await fetch('/api/admin/registration-codes', {
+    method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ studentId })
+    body: JSON.stringify({ registrationCodes })
   });
   const data = await res.json();
   if (!res.ok) {
-    error.textContent = data.error || 'خطا در افزودن شماره.';
+    error.textContent = data.error || 'خطا در به‌روزرسانی کدها.';
     error.style.display = 'block';
     return;
   }
   input.value = '';
-  document.getElementById('studentIdsInput').value = data.studentIds.join('\n');
-  success.textContent = 'شماره با موفقیت اضافه شد ✓';
+  document.getElementById('registrationCodeCounts').textContent =
+    `کدهای قابل‌استفاده: ${data.availableCount} — کدهای مصرف‌شده: ${data.usedCount}`;
+  success.textContent = method === 'POST'
+    ? `${data.addedCount} کد جدید اضافه شد ✓`
+    : `${data.revokedCount} کد استفاده‌نشده باطل شد ✓`;
   success.style.display = 'block';
-};
+}
 
-document.getElementById('saveStudentIdsBtn').onclick = async () => {
-  const ids = document.getElementById('studentIdsInput').value
-    .split(/\r?\n/)
-    .map(id => id.trim())
-    .filter(Boolean);
-  const res = await fetch('/api/admin/student-ids', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ studentIds: ids })
-  });
-  const data = await res.json();
-  const success = document.getElementById('studentIdsMsg');
-  const error = document.getElementById('studentIdsError');
-  success.style.display = 'none';
-  error.style.display = 'none';
-  if (!res.ok) {
-    error.textContent = data.error || 'خطا در ذخیره شماره‌ها.';
-    error.style.display = 'block';
-    return;
-  }
-  document.getElementById('studentIdsInput').value = data.studentIds.join('\n');
-  success.textContent = `${data.studentIds.length} شماره ذخیره شد ✓`;
-  success.style.display = 'block';
-};
+document.getElementById('saveRegistrationCodesBtn').onclick = () => updateRegistrationCodes('POST');
+document.getElementById('revokeRegistrationCodesBtn').onclick = () => updateRegistrationCodes('DELETE');
 
 async function loadConfig() {
   const r = await fetch('/api/admin/config').then(r => r.json());
@@ -443,7 +420,7 @@ async function loadLeaderboard() {
 async function loadUsers() {
   const r = await fetch('/api/admin/users').then(r => r.json());
   document.getElementById('userList').innerHTML = r.users.length
-    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><a class="btn secondary" href="/api/admin/users/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل شرکت‌کننده‌ها</a><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
+    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><a class="btn secondary" href="/api/admin/users/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل شرکت‌کننده‌ها</a><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی (ثبت‌نام قدیمی)</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
     : '<p class="muted">هنوز کسی ثبت‌نام نکرده.</p>';
 }
 

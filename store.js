@@ -7,8 +7,10 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 
 function defaultData() {
   return {
-    users: [],       // { id, username, studentId, passwordHash, salt, createdAt }
-    allowedStudentIds: [],
+    users: [],       // Legacy users may still have studentId.
+    allowedStudentIds: [], // Legacy registration list; no longer used.
+    registrationCodes: [],
+    registrationCodesImported: false,
     questions: [],    // { id, type: 'mcq'|'code', title, prompt, points,
                       //   options?, correctIndex?,  (mcq)
                       //   language?, starterCode?, stdin?, expectedOutput?  (code)
@@ -75,8 +77,12 @@ function verifyPassword(password, salt, hash) {
   return crypto.timingSafeEqual(Buffer.from(check), Buffer.from(hash));
 }
 
+function hashRegistrationCode(code, secret) {
+  return crypto.createHmac('sha256', secret).update(code).digest('hex');
+}
+
 function newId(prefix) {
   return prefix + '_' + crypto.randomBytes(6).toString('hex');
 }
 
-module.exports = { read, mutate, hashPassword, verifyPassword, newId };
+module.exports = { read, mutate, hashPassword, verifyPassword, hashRegistrationCode, newId };

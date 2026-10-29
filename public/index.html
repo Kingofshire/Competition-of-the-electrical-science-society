@@ -32,9 +32,9 @@
     <div id="formArea">
       <label>نام کاربری</label>
       <input type="text" id="username" placeholder="مثلاً ali_hosseini">
-      <div id="studentIdArea">
-        <label>شماره دانشجویی</label>
-        <input type="text" id="studentId" inputmode="numeric" placeholder="مثلاً 401123456" autocomplete="off">
+      <div id="registrationCodeArea">
+        <label>کد ثبت‌نام</label>
+        <input type="text" id="registrationCode" inputmode="numeric" maxlength="5" placeholder="کد ۵ رقمی" autocomplete="off">
       </div>
       <label>رمز عبور</label>
       <input type="password" id="password" placeholder="حداقل ۴ کاراکتر">
@@ -67,14 +67,14 @@ const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
 const submitBtn = document.getElementById('submitBtn');
 const msg = document.getElementById('msg');
-const studentIdArea = document.getElementById('studentIdArea');
-const studentIdInput = document.getElementById('studentId');
+const registrationCodeArea = document.getElementById('registrationCodeArea');
+const registrationCodeInput = document.getElementById('registrationCode');
 
-studentIdInput.addEventListener('input', () => {
-  studentIdInput.classList.toggle('digits-fa', /[۰-۹]/.test(studentIdInput.value));
+registrationCodeInput.addEventListener('input', () => {
+  registrationCodeInput.classList.toggle('digits-fa', /[۰-۹]/.test(registrationCodeInput.value));
 });
 
-function normalizeStudentId(value) {
+function normalizeRegistrationCode(value) {
   return value.trim()
     .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
     .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
@@ -83,7 +83,7 @@ function normalizeStudentId(value) {
 function setMode(m) {
   mode = m;
   submitBtn.textContent = m === 'login' ? 'ورود' : 'ثبت‌نام و ورود';
-  studentIdArea.style.display = m === 'login' ? 'none' : 'block';
+  registrationCodeArea.style.display = m === 'login' ? 'none' : 'block';
   tabLogin.classList.toggle('is-active', m === 'login');
   tabRegister.classList.toggle('is-active', m === 'register');
   msg.style.display = 'none';
@@ -103,7 +103,7 @@ checkSession();
 
 submitBtn.onclick = async () => {
   const username = document.getElementById('username').value.trim();
-  const studentId = normalizeStudentId(document.getElementById('studentId').value);
+  const registrationCode = normalizeRegistrationCode(registrationCodeInput.value);
   const password = document.getElementById('password').value;
   msg.style.display = 'none';
   if (!username || !password) {
@@ -111,8 +111,8 @@ submitBtn.onclick = async () => {
     msg.style.display = 'block';
     return;
   }
-  if (mode === 'register' && !/^\d{8}$/.test(studentId)) {
-    msg.textContent = 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.';
+  if (mode === 'register' && !/^\d{5}$/.test(registrationCode)) {
+    msg.textContent = 'کد ثبت‌نام باید دقیقاً ۵ رقم باشد.';
     msg.style.display = 'block';
     return;
   }
@@ -121,7 +121,7 @@ submitBtn.onclick = async () => {
     const res = await fetch('/api/' + mode, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, studentId, password })
+      body: JSON.stringify({ username, registrationCode, password })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'خطا');

@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const ExcelJS = require('exceljs');
 const store = require('./store');
 const judge = require('./judge');
@@ -11,8 +12,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'; // حتماً قبل از استقرار واقعی عوض کنید
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-before-deploying';
+const REGISTRATION_CODE_SECRET = process.env.REGISTRATION_CODE_SECRET;
 const ENABLE_CODE_QUESTIONS = process.env.ENABLE_CODE_QUESTIONS === 'true';
 const PROFANITY_FILE = path.join(__dirname, 'profanity.json');
+const REGISTRATION_CODES_FILE = path.join(__dirname, 'Code.txt');
 
 function loadProfanityWords() {
   try {
@@ -36,6 +39,9 @@ const USERNAME_PROFANITY_WORDS = process.env.USERNAME_PROFANITY_WORDS
 const adminLoginAttempts = new Map();
 const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const registrationCodeAttempts = new Map();
+const REGISTRATION_CODE_MAX_ATTEMPTS = 10;
+const REGISTRATION_CODE_WINDOW_MS = 15 * 60 * 1000;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(session({
@@ -77,11 +83,60 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-function normalizeStudentId(value) {
+function normalizeRegistrationCode(value) {
   return String(value || '')
     .trim()
     .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
     .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+}
+
+function matchingRegistrationCode(codes, hash) {
+  const expected = Buffer.from(hash, 'hex');
+  return codes.find(code => {
+    if (!code || !/^[\da-f]{64}$/i.test(code.hash || '')) return false;
+    return crypto.timingSafeEqual(expected, Buffer.from(code.hash, 'hex'));
+  });
+}
+
+async function importRegistrationCodes() {
+  await store.mutate(data => {
+    if (!REGISTRATION_CODE_SECRET || REGISTRATION_CODE_SECRET.length < 32) {
+      throw new Error('Set REGISTRATION_CODE_SECRET to a random secret of at least 32 characters.');
+    }
+    if (data.registrationCodesImported) return;
+    if (!fs.existsSync(REGISTRATION_CODES_FILE)) {
+      throw new Error('Code.txt was not found; registration codes could not be imported.');
+    }
+
+    const rawCodes = fs.readFileSync(REGISTRATION_CODES_FILE, 'utf8')
+      .split(/\r?\n/)
+      .map(normalizeRegistrationCode)
+      .filter(Boolean);
+    const invalidCodes = rawCodes.filter(code => !/^\d{5}$/.test(code));
+    if (invalidCodes.length) {
+      throw new Error(`Code.txt contains ${invalidCodes.length} invalid registration code(s); expected five digits per line.`);
+    }
+
+    const hashes = [...new Set(rawCodes.map(code => store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET)))];
+    data.registrationCodes = hashes.map(hash => ({ hash, usedAt: null, usedBy: null }));
+    data.registrationCodesImported = true;
+    console.log(`Imported ${hashes.length} registration code(s) from Code.txt.`);
+  });
+}
+
+function registrationCodeRateLimited(ip) {
+  const now = Date.now();
+  const attempt = registrationCodeAttempts.get(ip);
+  if (!attempt || now - attempt.startedAt >= REGISTRATION_CODE_WINDOW_MS) {
+    registrationCodeAttempts.set(ip, { startedAt: now, count: 0 });
+    return false;
+  }
+  return attempt.count >= REGISTRATION_CODE_MAX_ATTEMPTS;
+}
+
+function recordRegistrationCodeFailure(ip) {
+  const attempt = registrationCodeAttempts.get(ip);
+  if (attempt) attempt.count += 1;
 }
 
 function maskUsername(value) {
@@ -168,7 +223,7 @@ async function buildUsersWorkbook(data) {
 
   sheet.columns = [
     { header: 'نام کاربری', key: 'username', width: 28 },
-    { header: 'شماره دانشجویی', key: 'studentId', width: 20 },
+    { header: 'شماره دانشجویی (ثبت‌نام قدیمی)', key: 'studentId', width: 30 },
     { header: 'تعداد سوال جواب داده', key: 'answered', width: 24 },
     { header: 'امتیاز', key: 'score', width: 14 }
   ];
@@ -190,37 +245,57 @@ async function buildUsersWorkbook(data) {
 
 // ---------- ثبت‌نام / ورود ----------
 app.post('/api/register', async (req, res) => {
-  const { studentId, password } = req.body || {};
+  const { registrationCode, password } = req.body || {};
   const username = maskUsername(req.body?.username);
   const rawUsername = String(req.body?.username || '').trim();
-  const normalizedStudentId = normalizeStudentId(studentId);
+  const normalizedCode = normalizeRegistrationCode(registrationCode);
   if (!username || !password || username.length < 3 || password.length < 4) {
     return res.status(400).json({ error: 'نام کاربری حداقل ۳ کاراکتر و رمز عبور حداقل ۴ کاراکتر باشد.' });
   }
-  if (!/^\d{8}$/.test(normalizedStudentId)) {
-    return res.status(400).json({ error: 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.' });
+  if (!/^\d{5}$/.test(normalizedCode)) {
+    return res.status(400).json({ error: 'کد ثبت‌نام باید دقیقاً ۵ رقم باشد.' });
   }
-  const data = store.read();
-  if (data.users.find(u => maskUsername(u.username).toLowerCase() === username.toLowerCase() || u.username.toLowerCase() === rawUsername.toLowerCase())) {
+  if (registrationCodeRateLimited(req.ip)) {
+    return res.status(429).json({ error: 'تعداد تلاش‌ها زیاد است. ۱۵ دقیقه دیگر دوباره تلاش کنید.' });
+  }
+  const codeHash = store.hashRegistrationCode(normalizedCode, REGISTRATION_CODE_SECRET);
+  const currentData = store.read();
+  if (currentData.users.find(u => maskUsername(u.username).toLowerCase() === username.toLowerCase() || u.username.toLowerCase() === rawUsername.toLowerCase())) {
     return res.status(400).json({ error: 'این نام کاربری قبلاً ثبت شده است.' });
   }
-  if (data.users.find(u => u.studentId === normalizedStudentId)) {
-    return res.status(400).json({ error: 'این شماره دانشجویی قبلاً ثبت شده است.' });
-  }
-  if (!Array.isArray(data.allowedStudentIds) || !data.allowedStudentIds.includes(normalizedStudentId)) {
-    return res.status(400).json({ error: 'این شماره دانشجویی در فهرست مجاز مسابقه نیست.' });
+  const registrationCodes = Array.isArray(currentData.registrationCodes) ? currentData.registrationCodes : [];
+  const availableCode = matchingRegistrationCode(registrationCodes, codeHash);
+  if (!availableCode || availableCode.usedAt) {
+    recordRegistrationCodeFailure(req.ip);
+    return res.status(400).json({ error: 'کد ثبت‌نام نامعتبر است یا قبلاً استفاده شده است.' });
   }
   const { salt, hash } = store.hashPassword(password);
-  await store.mutate(d => {
-    d.users.push({ id: store.newId('u'), username, studentId: normalizedStudentId, passwordHash: hash, salt, createdAt: new Date().toISOString() });
-    d.submissions[username] = {};
+  const result = await store.mutate(data => {
+    if (data.users.find(u => maskUsername(u.username).toLowerCase() === username.toLowerCase() || u.username.toLowerCase() === rawUsername.toLowerCase())) {
+      return { error: 'این نام کاربری قبلاً ثبت شده است.' };
+    }
+    const codes = Array.isArray(data.registrationCodes) ? data.registrationCodes : [];
+    const code = matchingRegistrationCode(codes, codeHash);
+    if (!code || code.usedAt) return { error: 'کد ثبت‌نام نامعتبر است یا قبلاً استفاده شده است.', invalidCode: true };
+
+    const createdAt = new Date().toISOString();
+    data.users.push({ id: store.newId('u'), username, passwordHash: hash, salt, createdAt });
+    data.submissions[username] = {};
+    code.usedAt = createdAt;
+    code.usedBy = username;
+    return { username };
   });
+  if (result.error) {
+    if (result.invalidCode) recordRegistrationCodeFailure(req.ip);
+    return res.status(400).json({ error: result.error });
+  }
+  registrationCodeAttempts.delete(req.ip);
   req.session.username = username;
   res.json({ ok: true, username });
 });
 
 app.post('/api/login', (req, res) => {
-  const { studentId, password } = req.body || {};
+  const { password } = req.body || {};
   const rawUsername = String(req.body?.username || '').trim();
   const username = maskUsername(req.body?.username);
   const data = store.read();
@@ -519,42 +594,72 @@ app.get('/api/admin/users/export', requireAdmin, async (req, res) => {
   res.end();
 });
 
-app.get('/api/admin/student-ids', requireAdmin, (req, res) => {
+app.get('/api/admin/registration-codes', requireAdmin, (req, res) => {
   const data = store.read();
-  res.json({ studentIds: Array.isArray(data.allowedStudentIds) ? data.allowedStudentIds : [] });
-});
-
-app.post('/api/admin/student-ids/add', requireAdmin, async (req, res) => {
-  const studentId = normalizeStudentId(req.body?.studentId);
-  if (!/^\d{8}$/.test(studentId)) {
-    return res.status(400).json({ error: 'شماره دانشجویی باید دقیقاً ۸ رقم باشد.' });
-  }
-  let studentIds;
-  await store.mutate(data => {
-    const currentIds = Array.isArray(data.allowedStudentIds) ? data.allowedStudentIds : [];
-    if (currentIds.includes(studentId)) return;
-    data.allowedStudentIds = [...currentIds, studentId];
-    studentIds = data.allowedStudentIds;
+  const codes = Array.isArray(data.registrationCodes) ? data.registrationCodes : [];
+  res.json({
+    availableCount: codes.filter(code => !code.usedAt).length,
+    usedCount: codes.filter(code => code.usedAt).length
   });
-  if (!studentIds) {
-    studentIds = store.read().allowedStudentIds;
-    return res.status(400).json({ error: 'این شماره قبلاً در فهرست وجود دارد.', studentIds });
-  }
-  res.json({ ok: true, studentIds });
 });
 
-app.put('/api/admin/student-ids', requireAdmin, async (req, res) => {
-  const rawIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
-  const studentIds = [...new Set(rawIds.map(normalizeStudentId).filter(Boolean))];
-  const invalid = studentIds.filter(id => !/^\d{8}$/.test(id));
-  if (invalid.length > 0) {
-    return res.status(400).json({ error: `این شماره‌ها باید دقیقاً ۸ رقم باشند: ${invalid.join('، ')}` });
+app.post('/api/admin/registration-codes', requireAdmin, async (req, res) => {
+  const rawCodes = Array.isArray(req.body?.registrationCodes) ? req.body.registrationCodes : [];
+  const registrationCodes = [...new Set(rawCodes.map(normalizeRegistrationCode).filter(Boolean))];
+  if (!registrationCodes.length || registrationCodes.some(code => !/^\d{5}$/.test(code))) {
+    return res.status(400).json({ error: 'کدها باید هرکدام دقیقاً ۵ رقم باشند.' });
   }
-  await store.mutate(data => { data.allowedStudentIds = studentIds; });
-  res.json({ ok: true, studentIds });
+  const hashes = registrationCodes.map(code => store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET));
+  let addedCount = 0;
+  await store.mutate(data => {
+    if (!Array.isArray(data.registrationCodes)) data.registrationCodes = [];
+    const existing = new Set(data.registrationCodes.map(code => code.hash));
+    const newCodes = hashes.filter(hash => !existing.has(hash));
+    data.registrationCodes.push(...newCodes.map(hash => ({ hash, usedAt: null, usedBy: null })));
+    addedCount = newCodes.length;
+  });
+  const codes = store.read().registrationCodes;
+  res.json({
+    ok: true,
+    addedCount,
+    availableCount: codes.filter(code => !code.usedAt).length,
+    usedCount: codes.filter(code => code.usedAt).length
+  });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Server is active in port ${PORT} : http://localhost:${PORT}`);
-  console.log(`🔑 Admin Password: ${ADMIN_PASSWORD}${process.env.ADMIN_PASSWORD ? '' : 'Change the default password!'}`);
+app.delete('/api/admin/registration-codes', requireAdmin, async (req, res) => {
+  const rawCodes = Array.isArray(req.body?.registrationCodes) ? req.body.registrationCodes : [];
+  const registrationCodes = [...new Set(rawCodes.map(normalizeRegistrationCode).filter(Boolean))];
+  if (!registrationCodes.length || registrationCodes.some(code => !/^\d{5}$/.test(code))) {
+    return res.status(400).json({ error: 'کدها باید هرکدام دقیقاً ۵ رقم باشند.' });
+  }
+  const hashes = new Set(registrationCodes.map(code => store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET)));
+  let revokedCount = 0;
+  await store.mutate(data => {
+    const codes = Array.isArray(data.registrationCodes) ? data.registrationCodes : [];
+    data.registrationCodes = codes.filter(code => {
+      if (!code.usedAt && hashes.has(code.hash)) {
+        revokedCount += 1;
+        return false;
+      }
+      return true;
+    });
+  });
+  const codes = store.read().registrationCodes;
+  res.json({
+    ok: true,
+    revokedCount,
+    availableCount: codes.filter(code => !code.usedAt).length,
+    usedCount: codes.filter(code => code.usedAt).length
+  });
+});
+
+importRegistrationCodes().then(() => {
+  app.listen(PORT, () => {
+    console.log(`✅ Server is active in port ${PORT} : http://localhost:${PORT}`);
+    console.log(`🔑 Admin Password: ${ADMIN_PASSWORD}${process.env.ADMIN_PASSWORD ? '' : 'Change the default password!'}`);
+  });
+}).catch(error => {
+  console.error(`Failed to initialize registration codes: ${error.message}`);
+  process.exitCode = 1;
 });
