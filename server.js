@@ -90,11 +90,75 @@ function normalizeRegistrationCode(value) {
     .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
 }
 
+function normalizeStudentId(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+}
+
+function parseRegistrationCodeLine(line) {
+  const values = String(line || '').split(/[,\t]/);
+  const [rawCode, rawStudentId = ''] = values;
+  return {
+    code: normalizeRegistrationCode(rawCode),
+    studentId: normalizeStudentId(rawStudentId) || null,
+    validColumns: values.length <= 2
+  };
+}
+
 function matchingRegistrationCode(codes, hash) {
   const expected = Buffer.from(hash, 'hex');
   return codes.find(code => {
     if (!code || !/^[\da-f]{64}$/i.test(code.hash || '')) return false;
     return crypto.timingSafeEqual(expected, Buffer.from(code.hash, 'hex'));
+  });
+}
+
+function shuffleQuestionIds(questionIds) {
+  const shuffled = [...questionIds];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function hasCompleteQuestionOrder(order, questionIds) {
+  if (!Array.isArray(order) || order.length !== questionIds.length) return false;
+  const orderSet = new Set(order);
+  return orderSet.size === questionIds.length && questionIds.every(id => orderSet.has(id));
+}
+
+function createQuestionOrder(questionIds, users, username) {
+  const existingOrders = users
+    .filter(user => user.username !== username && hasCompleteQuestionOrder(user.questionOrder, questionIds))
+    .map(user => JSON.stringify(user.questionOrder));
+
+  let order;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    order = shuffleQuestionIds(questionIds);
+    if (!existingOrders.includes(JSON.stringify(order))) return order;
+  }
+  return order;
+}
+
+async function ensureQuestionOrder(username) {
+  const data = store.read();
+  const user = data.users.find(entry => entry.username === username);
+  if (!user) return [];
+  const questionIds = data.questions.map(question => question.id);
+  if (hasCompleteQuestionOrder(user.questionOrder, questionIds)) return user.questionOrder;
+
+  return store.mutate(currentData => {
+    const currentUser = currentData.users.find(entry => entry.username === username);
+    if (!currentUser) return [];
+    const currentQuestionIds = currentData.questions.map(question => question.id);
+    if (hasCompleteQuestionOrder(currentUser.questionOrder, currentQuestionIds)) {
+      return currentUser.questionOrder;
+    }
+    currentUser.questionOrder = createQuestionOrder(currentQuestionIds, currentData.users, username);
+    return currentUser.questionOrder;
   });
 }
 
@@ -108,17 +172,40 @@ async function importRegistrationCodes() {
       throw new Error('Code.txt was not found; registration codes could not be imported.');
     }
 
-    const rawCodes = fs.readFileSync(REGISTRATION_CODES_FILE, 'utf8')
+    const rawLines = fs.readFileSync(REGISTRATION_CODES_FILE, 'utf8')
       .split(/\r?\n/)
-      .map(normalizeRegistrationCode)
-      .filter(Boolean);
-    const invalidCodes = rawCodes.filter(code => !/^\d{5}$/.test(code));
-    if (invalidCodes.length) {
-      throw new Error(`Code.txt contains ${invalidCodes.length} invalid registration code(s); expected five digits per line.`);
+      .filter(line => line.trim());
+    const entries = rawLines.map(parseRegistrationCodeLine);
+    const invalidEntries = entries.filter(entry =>
+      !entry.validColumns ||
+      !/^\d{5}$/.test(entry.code) ||
+      (entry.studentId && !/^\d{6,20}$/.test(entry.studentId))
+    );
+    if (invalidEntries.length) {
+      throw new Error(`Code.txt contains ${invalidEntries.length} invalid line(s); use a five-digit code and optionally a 6-20 digit student ID separated by a comma.`);
     }
 
-    const hashes = [...new Set(rawCodes.map(code => store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET)))];
-    data.registrationCodes = hashes.map(hash => ({ hash, usedAt: null, usedBy: null }));
+    const codeToStudentId = new Map();
+    const studentIdToCode = new Map();
+    for (const entry of entries) {
+      if (codeToStudentId.has(entry.code) && codeToStudentId.get(entry.code) !== entry.studentId) {
+        throw new Error('Code.txt assigns different student IDs to the same registration code.');
+      }
+      if (entry.studentId && studentIdToCode.has(entry.studentId) && studentIdToCode.get(entry.studentId) !== entry.code) {
+        throw new Error('Code.txt assigns the same student ID to multiple registration codes.');
+      }
+      codeToStudentId.set(entry.code, entry.studentId);
+      if (entry.studentId) studentIdToCode.set(entry.studentId, entry.code);
+    }
+
+    const codes = [...codeToStudentId.entries()]
+      .map(([code, studentId]) => ({ code, studentId }));
+    const hashes = codes
+      .map(({ code, studentId }) => ({
+        hash: store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET),
+        studentId
+      }));
+    data.registrationCodes = hashes.map(({ hash, studentId }) => ({ hash, studentId, usedAt: null, usedBy: null }));
     data.registrationCodesImported = true;
     console.log(`Imported ${hashes.length} registration code(s) from Code.txt.`);
   });
@@ -173,6 +260,7 @@ function leaderboardData(data) {
   return data.users
     .map(u => ({
       username: u.username,
+      studentId: u.studentId || '-',
       score: computeScore(data, u.username),
       answered: Object.keys(data.submissions[u.username] || {}).length
     }))
@@ -181,13 +269,60 @@ function leaderboardData(data) {
 
 function isLeaderboardLocked(data) {
   if (data.config.leaderboardForceOpen) return false;
-  if (!data.config.competitionEndTime) return true; // اگر زمانی تعیین نشده، قفل بماند
-  return new Date() < new Date(data.config.competitionEndTime);
+  const unlockTime = leaderboardUnlockTime(data);
+  if (!unlockTime) return true; // اگر زمانی تعیین نشده، قفل بماند
+  return Date.now() < unlockTime.getTime();
+}
+
+function leaderboardUnlockTime(data) {
+  if (!data.config.competitionEndTime) return null;
+  const unlockTime = new Date(data.config.competitionEndTime);
+  if (!data.config.competitionStartTime) return unlockTime;
+
+  for (const user of data.users) {
+    if (!user.contestEndsAt) continue;
+    const userEndTime = new Date(user.contestEndsAt);
+    if (Number.isFinite(userEndTime.getTime()) && userEndTime > unlockTime) {
+      unlockTime.setTime(userEndTime.getTime());
+    }
+  }
+  return unlockTime;
 }
 
 function getContestState(data, username) {
   const user = data.users.find(u => u.username === username);
-  if (!user || !user.contestStartedAt || !user.contestEndsAt) {
+  if (!user) {
+    return { started: false, expired: false, startedAt: null, endsAt: null };
+  }
+  if (user.contestStartedAt && user.contestEndsAt) {
+    const expired = Date.now() >= new Date(user.contestEndsAt).getTime();
+    return { started: true, expired, startedAt: user.contestStartedAt, endsAt: user.contestEndsAt };
+  }
+
+  const { competitionStartTime, competitionEndTime } = data.config;
+  if (competitionStartTime && competitionEndTime) {
+    const startsAt = new Date(competitionStartTime);
+    const startWindowEndsAt = new Date(competitionEndTime);
+    const now = Date.now();
+    const startWindow = {
+      scheduled: true,
+      startsAt: startsAt.toISOString(),
+      startWindowEndsAt: startWindowEndsAt.toISOString()
+    };
+    if (now < startsAt.getTime()) {
+      return {
+        started: false,
+        expired: false,
+        canStart: false,
+        ...startWindow
+      };
+    }
+    if (now >= startWindowEndsAt.getTime()) {
+      return { started: false, expired: true, canStart: false, startWindowClosed: true, ...startWindow };
+    }
+    return { started: false, expired: false, canStart: true, ...startWindow };
+  }
+  if (!user.contestStartedAt || !user.contestEndsAt) {
     return { started: false, expired: false, startedAt: null, endsAt: null };
   }
   const expired = Date.now() >= new Date(user.contestEndsAt).getTime();
@@ -202,6 +337,7 @@ async function buildLeaderboardWorkbook(data, entries) {
   sheet.columns = [
     { header: 'رتبه', key: 'rank', width: 8 },
     { header: 'نام کاربری', key: 'username', width: 28 },
+    { header: 'شماره دانشجویی', key: 'studentId', width: 20 },
     { header: 'امتیاز', key: 'score', width: 12 },
     { header: 'تعداد پاسخ‌داده', key: 'answered', width: 18 }
   ];
@@ -209,7 +345,7 @@ async function buildLeaderboardWorkbook(data, entries) {
   sheet.getRow(1).alignment = { horizontal: 'center' };
 
   entries.forEach((e, i) => {
-    sheet.addRow({ rank: i + 1, username: e.username, score: e.score, answered: e.answered });
+    sheet.addRow({ rank: i + 1, username: e.username, studentId: e.studentId, score: e.score, answered: e.answered });
   });
 
   sheet.eachRow(row => { row.alignment = { horizontal: 'center' }; });
@@ -223,7 +359,7 @@ async function buildUsersWorkbook(data) {
 
   sheet.columns = [
     { header: 'نام کاربری', key: 'username', width: 28 },
-    { header: 'شماره دانشجویی (ثبت‌نام قدیمی)', key: 'studentId', width: 30 },
+    { header: 'شماره دانشجویی', key: 'studentId', width: 20 },
     { header: 'تعداد سوال جواب داده', key: 'answered', width: 24 },
     { header: 'امتیاز', key: 'score', width: 14 }
   ];
@@ -265,9 +401,13 @@ app.post('/api/register', async (req, res) => {
   }
   const registrationCodes = Array.isArray(currentData.registrationCodes) ? currentData.registrationCodes : [];
   const availableCode = matchingRegistrationCode(registrationCodes, codeHash);
-  if (!availableCode || availableCode.usedAt) {
+  if (!availableCode || availableCode.usedAt || !availableCode.studentId) {
     recordRegistrationCodeFailure(req.ip);
-    return res.status(400).json({ error: 'کد ثبت‌نام نامعتبر است یا قبلاً استفاده شده است.' });
+    return res.status(400).json({ error: 'کد ثبت‌نام نامعتبر، مصرف‌شده یا هنوز به شماره دانشجویی متصل نشده است.' });
+  }
+  const studentId = availableCode.studentId;
+  if (currentData.users.some(user => user.studentId === studentId)) {
+    return res.status(400).json({ error: 'این شماره دانشجویی قبلاً برای یک حساب ثبت شده است.' });
   }
   const { salt, hash } = store.hashPassword(password);
   const result = await store.mutate(data => {
@@ -276,10 +416,15 @@ app.post('/api/register', async (req, res) => {
     }
     const codes = Array.isArray(data.registrationCodes) ? data.registrationCodes : [];
     const code = matchingRegistrationCode(codes, codeHash);
-    if (!code || code.usedAt) return { error: 'کد ثبت‌نام نامعتبر است یا قبلاً استفاده شده است.', invalidCode: true };
+    if (!code || code.usedAt || code.studentId !== studentId) {
+      return { error: 'کد ثبت‌نام نامعتبر، مصرف‌شده یا هنوز به شماره دانشجویی متصل نشده است.', invalidCode: true };
+    }
+    if (data.users.some(user => user.studentId === studentId)) {
+      return { error: 'این شماره دانشجویی قبلاً برای یک حساب ثبت شده است.' };
+    }
 
     const createdAt = new Date().toISOString();
-    data.users.push({ id: store.newId('u'), username, passwordHash: hash, salt, createdAt });
+    data.users.push({ id: store.newId('u'), username, studentId, passwordHash: hash, salt, createdAt });
     data.submissions[username] = {};
     code.usedAt = createdAt;
     code.usedBy = username;
@@ -316,8 +461,8 @@ app.get('/api/me', (req, res) => {
 });
 
 // ---------- Q ----------
-app.get('/api/questions', requireAuth, (req, res) => {
-  const data = store.read();
+app.get('/api/questions', requireAuth, async (req, res) => {
+  let data = store.read();
   const mySubs = data.submissions[req.session.username] || {};
   const progress = {
     answered: Object.keys(mySubs).length,
@@ -327,9 +472,12 @@ app.get('/api/questions', requireAuth, (req, res) => {
   if (!contest.started || contest.expired) {
     return res.json({ title: data.config.title, questions: [], contest, progress });
   }
+  const questionOrder = await ensureQuestionOrder(req.session.username);
+  data = store.read();
+  const orderById = new Map(questionOrder.map((id, index) => [id, index]));
   const qs = [...data.questions]
     .filter(q => ENABLE_CODE_QUESTIONS || q.type !== 'code')
-    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .sort((a, b) => orderById.get(a.id) - orderById.get(b.id))
     .map(q => {
       const pub = publicQuestion(q);
       const sub = mySubs[q.id];
@@ -343,16 +491,49 @@ app.get('/api/questions', requireAuth, (req, res) => {
 app.post('/api/contest/start', requireAuth, async (req, res) => {
   const data = store.read();
   const existing = getContestState(data, req.session.username);
+  if (existing.scheduled && !existing.canStart && !existing.started) {
+    const error = existing.startWindowClosed
+      ? 'مهلت شروع مسابقه به پایان رسیده است.'
+      : 'مسابقه هنوز به زمان شروع نرسیده است.';
+    return res.status(403).json({ error });
+  }
+  if (existing.expired) {
+    return res.status(403).json({ error: 'زمان مسابقه تمام شده است.' });
+  }
   if (existing.started) return res.json({ ok: true, contest: existing });
   const duration = Number(data.config.contestDurationMinutes) || 60;
-  const startedAt = new Date();
-  const endsAt = new Date(startedAt.getTime() + duration * 60 * 1000);
-  await store.mutate(d => {
+  const contest = await store.mutate(d => {
     const user = d.users.find(u => u.username === req.session.username);
+    const currentContest = getContestState(d, req.session.username);
+    if (currentContest.started) return { contest: currentContest };
+    if (currentContest.scheduled && !currentContest.canStart) {
+      return {
+        error: currentContest.startWindowClosed
+          ? 'مهلت شروع مسابقه به پایان رسیده است.'
+          : 'مسابقه هنوز به زمان شروع نرسیده است.'
+      };
+    }
+
+    const startedAt = new Date();
+    const endsAt = new Date(startedAt.getTime() + duration * 60 * 1000);
     user.contestStartedAt = startedAt.toISOString();
     user.contestEndsAt = endsAt.toISOString();
+    user.questionOrder = createQuestionOrder(
+      d.questions.map(question => question.id),
+      d.users,
+      user.username
+    );
+    return {
+      contest: {
+        started: true,
+        expired: false,
+        startedAt: startedAt.toISOString(),
+        endsAt: endsAt.toISOString()
+      }
+    };
   });
-  res.json({ ok: true, contest: { started: true, expired: false, endsAt: endsAt.toISOString() } });
+  if (contest.error) return res.status(403).json({ error: contest.error });
+  res.json({ ok: true, contest: contest.contest });
 });
 
 app.post('/api/submit', requireAuth, async (req, res) => {
@@ -422,11 +603,24 @@ app.post('/api/submit', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'نوع سوال نامعتبر است.' });
   }
 
+  let submitError;
+  let submitStatus = 403;
   await store.mutate(d => {
+    const currentContest = getContestState(d, username);
+    if (!currentContest.started || currentContest.expired) {
+      submitError = 'زمان مسابقه هنگام ثبت پاسخ به پایان رسید؛ پاسخ ثبت نشد.';
+      return;
+    }
     if (!d.submissions[username]) d.submissions[username] = {};
+    if (d.submissions[username][questionId]) {
+      submitError = 'قبلاً به این سوال پاسخ داده‌اید.';
+      submitStatus = 400;
+      return;
+    }
     d.submissions[username][questionId] = result;
   });
 
+  if (submitError) return res.status(submitStatus).json({ error: submitError });
   res.json({ ok: true, result });
 });
 
@@ -454,9 +648,9 @@ app.get('/api/leaderboard', requireAuth, (req, res) => {
   const data = store.read();
   const locked = isLeaderboardLocked(data);
   if (locked) {
-    return res.json({ locked: true, endTime: data.config.competitionEndTime });
+    return res.json({ locked: true, endTime: leaderboardUnlockTime(data)?.toISOString() || null });
   }
-  res.json({ locked: false, endTime: data.config.competitionEndTime, entries: leaderboardData(data) });
+  res.json({ locked: false, endTime: leaderboardUnlockTime(data)?.toISOString() || null, entries: leaderboardData(data) });
 });
 
 // ---------- Admin ----------
@@ -549,12 +743,27 @@ app.delete('/api/admin/questions/:id', requireAdmin, async (req, res) => {
 });
 
 app.put('/api/admin/config', requireAdmin, async (req, res) => {
-  const { competitionEndTime, leaderboardForceOpen, contestDurationMinutes, title } = req.body || {};
+  const { competitionStartTime, competitionEndTime, leaderboardForceOpen, contestDurationMinutes, title } = req.body || {};
+  const startTime = competitionStartTime || null;
+  const endTime = competitionEndTime || null;
+  if (startTime && !Number.isFinite(Date.parse(startTime))) {
+    return res.status(400).json({ error: 'زمان شروع مسابقه معتبر نیست.' });
+  }
+  if (endTime && !Number.isFinite(Date.parse(endTime))) {
+    return res.status(400).json({ error: 'زمان پایان مسابقه معتبر نیست.' });
+  }
+  if (startTime && !endTime) {
+    return res.status(400).json({ error: 'برای تنظیم شروع زمان‌بندی‌شده، زمان پایان را هم مشخص کنید.' });
+  }
+  if (startTime && endTime && Date.parse(endTime) <= Date.parse(startTime)) {
+    return res.status(400).json({ error: 'زمان پایان باید بعد از زمان شروع باشد.' });
+  }
   if (contestDurationMinutes !== undefined && (!Number.isInteger(Number(contestDurationMinutes)) || Number(contestDurationMinutes) < 1)) {
     return res.status(400).json({ error: 'مدت مسابقه باید حداقل ۱ دقیقه باشد.' });
   }
   await store.mutate(d => {
-    if (competitionEndTime !== undefined) d.config.competitionEndTime = competitionEndTime;
+    if (competitionStartTime !== undefined) d.config.competitionStartTime = startTime;
+    if (competitionEndTime !== undefined) d.config.competitionEndTime = endTime;
     if (leaderboardForceOpen !== undefined) d.config.leaderboardForceOpen = leaderboardForceOpen;
     if (contestDurationMinutes !== undefined) d.config.contestDurationMinutes = Number(contestDurationMinutes);
     if (title !== undefined) d.config.title = title;
@@ -599,31 +808,91 @@ app.get('/api/admin/registration-codes', requireAdmin, (req, res) => {
   const codes = Array.isArray(data.registrationCodes) ? data.registrationCodes : [];
   res.json({
     availableCount: codes.filter(code => !code.usedAt).length,
-    usedCount: codes.filter(code => code.usedAt).length
+    usedCount: codes.filter(code => code.usedAt).length,
+    unmappedCount: codes.filter(code => !code.studentId).length
   });
 });
 
 app.post('/api/admin/registration-codes', requireAdmin, async (req, res) => {
-  const rawCodes = Array.isArray(req.body?.registrationCodes) ? req.body.registrationCodes : [];
-  const registrationCodes = [...new Set(rawCodes.map(normalizeRegistrationCode).filter(Boolean))];
-  if (!registrationCodes.length || registrationCodes.some(code => !/^\d{5}$/.test(code))) {
-    return res.status(400).json({ error: 'کدها باید هرکدام دقیقاً ۵ رقم باشند.' });
+  const rawEntries = Array.isArray(req.body?.registrationCodes) ? req.body.registrationCodes : [];
+  const entries = rawEntries.map(entry => ({
+    code: normalizeRegistrationCode(entry?.code),
+    studentId: normalizeStudentId(entry?.studentId)
+  }));
+  if (!entries.length || entries.some(entry =>
+    !/^\d{5}$/.test(entry.code) || !/^\d{6,20}$/.test(entry.studentId)
+  )) {
+    return res.status(400).json({ error: 'هر خط باید شامل کد ۵ رقمی و شماره دانشجویی ۶ تا ۲۰ رقمی باشد.' });
   }
-  const hashes = registrationCodes.map(code => store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET));
-  let addedCount = 0;
-  await store.mutate(data => {
+  const entriesByCode = new Map();
+  const codesByStudentId = new Map();
+  for (const entry of entries) {
+    const previousStudentId = entriesByCode.get(entry.code);
+    if (previousStudentId && previousStudentId !== entry.studentId) {
+      return res.status(400).json({ error: 'برای یک کد، چند شماره دانشجویی متفاوت وارد شده است.' });
+    }
+    const previousCode = codesByStudentId.get(entry.studentId);
+    if (previousCode && previousCode !== entry.code) {
+      return res.status(400).json({ error: 'هر شماره دانشجویی باید فقط به یک کد متصل باشد.' });
+    }
+    entriesByCode.set(entry.code, entry.studentId);
+    codesByStudentId.set(entry.studentId, entry.code);
+  }
+  const mappedEntries = [...entriesByCode.entries()].map(([code, studentId]) => ({
+    hash: store.hashRegistrationCode(code, REGISTRATION_CODE_SECRET),
+    studentId
+  }));
+  const result = await store.mutate(data => {
     if (!Array.isArray(data.registrationCodes)) data.registrationCodes = [];
-    const existing = new Set(data.registrationCodes.map(code => code.hash));
-    const newCodes = hashes.filter(hash => !existing.has(hash));
-    data.registrationCodes.push(...newCodes.map(hash => ({ hash, usedAt: null, usedBy: null })));
-    addedCount = newCodes.length;
+    const codes = data.registrationCodes;
+    const users = data.users;
+    const plans = mappedEntries.map(entry => {
+      const code = codes.find(item => item.hash === entry.hash);
+      const linkedUser = code?.usedBy ? users.find(user => user.username === code.usedBy) : null;
+      return { ...entry, code, linkedUser };
+    });
+
+    for (const plan of plans) {
+      if (plan.code?.studentId && plan.code.studentId !== plan.studentId) {
+        return { error: 'این کد قبلاً به شماره دانشجویی دیگری متصل شده است.' };
+      }
+      if (plan.linkedUser?.studentId && plan.linkedUser.studentId !== plan.studentId) {
+        return { error: 'شماره دانشجویی این حساب قبلاً ثبت شده و با مقدار واردشده متفاوت است.' };
+      }
+      if (codes.some(code => code.hash !== plan.hash && code.studentId === plan.studentId)) {
+        return { error: 'این شماره دانشجویی قبلاً به کد دیگری متصل شده است.' };
+      }
+      if (users.some(user => user.studentId === plan.studentId && user !== plan.linkedUser)) {
+        return { error: 'این شماره دانشجویی قبلاً برای حساب دیگری ثبت شده است.' };
+      }
+    }
+
+    let addedCount = 0;
+    let mappedCount = 0;
+    let updatedUserCount = 0;
+    for (const plan of plans) {
+      if (!plan.code) {
+        codes.push({ hash: plan.hash, studentId: plan.studentId, usedAt: null, usedBy: null });
+        addedCount += 1;
+      } else if (!plan.code.studentId) {
+        plan.code.studentId = plan.studentId;
+        mappedCount += 1;
+      }
+      if (plan.linkedUser && !plan.linkedUser.studentId) {
+        plan.linkedUser.studentId = plan.studentId;
+        updatedUserCount += 1;
+      }
+    }
+    return { addedCount, mappedCount, updatedUserCount };
   });
+  if (result.error) return res.status(400).json({ error: result.error });
   const codes = store.read().registrationCodes;
   res.json({
     ok: true,
-    addedCount,
+    ...result,
     availableCount: codes.filter(code => !code.usedAt).length,
-    usedCount: codes.filter(code => code.usedAt).length
+    usedCount: codes.filter(code => code.usedAt).length,
+    unmappedCount: codes.filter(code => !code.studentId).length
   });
 });
 

@@ -149,6 +149,7 @@ async function render() {
     <tr class="${e.username === myUsername ? 'me' : ''}">
       <td class="rank">${i + 1}</td>
       <td>${escapeHtml(e.username)}${e.username === myUsername ? ' (شما)' : ''}</td>
+      <td>${escapeHtml(e.studentId)}</td>
       <td>${e.score}</td>
       <td class="muted">${e.answered}</td>
     </tr>
@@ -157,8 +158,8 @@ async function render() {
   content.innerHTML = `
     <h2>🏆 نتایج نهایی</h2>
     <table>
-      <thead><tr><th>رتبه</th><th>نام کاربری</th><th>امتیاز</th><th>پاسخ‌داده</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4" class="muted">هنوز شرکت‌کننده‌ای نیست.</td></tr>'}</tbody>
+      <thead><tr><th>رتبه</th><th>نام کاربری</th><th>شماره دانشجویی</th><th>امتیاز</th><th>پاسخ‌داده</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="muted">هنوز شرکت‌کننده‌ای نیست.</td></tr>'}</tbody>
     </table>
   `;
 }

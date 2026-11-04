@@ -17,6 +17,7 @@ function defaultData() {
                       //   order }
     submissions: {},  // { [username]: { [questionId]: { answer, correct, points, output, error, submittedAt } } }
     config: {
+      competitionStartTime: null, // ISO string; scheduled contests start and end globally
       competitionEndTime: null, // ISO string; leaderboard locked until this time
       leaderboardForceOpen: false,
       contestDurationMinutes: 60,

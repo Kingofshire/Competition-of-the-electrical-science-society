@@ -112,6 +112,7 @@ const CM_MODE = {
 const draftAnswers = new Map();
 const questionEditors = new Map();
 let finalSubmitting = false;
+let scheduledStartTimer = null;
 const tickSound = window.quizTickSound;
 const tickToggle = document.getElementById('tickToggle');
 function updateTickToggle() {
@@ -311,6 +312,8 @@ function escapeHtml(s) {
 }
 
 async function render() {
+  if (scheduledStartTimer) clearTimeout(scheduledStartTimer);
+  scheduledStartTimer = null;
   const user = await me();
   if (!user) return;
   const data = await fetch('/api/questions').then(r => r.json());
@@ -323,8 +326,50 @@ async function render() {
   questionEditors.clear();
   finalSubmitBtn.hidden = true;
 
+  if (data.contest.scheduled && !data.contest.started && !data.contest.canStart && !data.contest.startWindowClosed) {
+    document.getElementById('contestStatus').innerHTML = `
+      <div class="card">
+        <h2>مسابقه هنوز شروع نشده است.</h2>
+        <p class="muted">شروع مسابقه در بازهٔ زمانی تعیین‌شده توسط برگزارکننده فعال می‌شود. پس از شروع، مهلت کامل خودتان را خواهید داشت.</p>
+        <strong id="scheduledStartCountdown"></strong>
+      </div>
+    `;
+    const countdown = document.getElementById('scheduledStartCountdown');
+    const startsAt = new Date(data.contest.startsAt).getTime();
+    const updateCountdown = () => {
+      const remaining = Math.max(0, startsAt - Date.now());
+      const totalSeconds = Math.ceil(remaining / 1000);
+      const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      countdown.textContent = `زمان باقی‌مانده تا شروع: ${hours}:${minutes}:${seconds}`;
+      scheduledStartTimer = setTimeout(remaining === 0 ? render : updateCountdown, 1000);
+    };
+    updateCountdown();
+    return;
+  }
+
+  if (data.contest.startWindowClosed && !data.contest.started) {
+    document.getElementById('contestStatus').innerHTML = `
+      <div class="card">
+        <h2>مهلت شروع مسابقه به پایان رسیده است.</h2>
+        <p class="muted">شروع جدید امکان‌پذیر نیست. لیدربورد پس از پایان مهلت شرکت‌کنندگان درحال مسابقه نمایش داده می‌شود.</p>
+      </div>
+    `;
+    return;
+  }
+
   if (!data.contest.started) {
     document.getElementById('contestStatus').innerHTML = '<div class="card"><h2>مسابقه هنوز شروع نشده است.</h2><p class="muted">با زدن دکمه زیر زمان شما آغاز می‌شود.</p><button class="primary" id="startContestBtn">شروع مسابقه</button><div class="error" id="startMsg" style="display:none;"></div></div>';
+    if (data.contest.scheduled && data.contest.startWindowEndsAt) {
+      const notice = document.createElement('p');
+      notice.className = 'muted';
+      notice.textContent = `مهلت شروع تا ${new Date(data.contest.startWindowEndsAt).toLocaleString('fa-IR')} است.`;
+      document.getElementById('contestStatus').querySelector('.card').insertBefore(
+        notice,
+        document.getElementById('startContestBtn')
+      );
+    }
     document.getElementById('startContestBtn').onclick = async () => {
       const btn = document.getElementById('startContestBtn');
       btn.disabled = true;

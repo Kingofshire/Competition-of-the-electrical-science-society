@@ -28,8 +28,11 @@
       <h2>⚙️ تنظیمات مسابقه</h2>
       <label>عنوان مسابقه</label>
       <input type="text" id="cfgTitle">
-      <label>زمان پایان مسابقه (بعدش لیدربورد باز می‌شود)</label>
+      <label>زمان شروع مسابقه (اختیاری)</label>
+      <input type="datetime-local" id="cfgStartTime">
+      <label>پایان مهلت شروع (بعد از آن شروع جدید بسته می‌شود)</label>
       <input type="datetime-local" id="cfgEndTime">
+      <p class="muted">با تنظیم زمان شروع و پایان، شرکت‌کنندگان در این بازه می‌توانند شروع کنند. هر نفر پس از شروع، مدت فردی کامل را دارد؛ حتی اگر مهلت شروع تمام شود. لیدربورد پس از پایان مهلت شروع و تمام آزمون‌های فردی باز می‌شود.</p>
       <label>مدت مسابقه برای هر شرکت‌کننده (دقیقه)</label>
       <input type="number" id="cfgDuration" min="1" step="1" value="60">
       <label style="display:flex; align-items:center; gap:8px; margin-top:14px;">
@@ -38,6 +41,7 @@
       </label>
       <button class="primary" id="saveCfgBtn">ذخیره تنظیمات</button>
       <div class="success" id="cfgMsg" style="display:none;"></div>
+      <div class="error" id="cfgError" style="display:none;"></div>
     </div>
 
     <div class="card">
@@ -106,11 +110,11 @@
     <div class="card">
       <h2>🎟️ کدهای ثبت‌نام</h2>
       <p class="muted" id="registrationCodeCounts">در حال بارگذاری...</p>
-      <label>کدهای ثبت‌نام (هر خط یک کد ۵ رقمی)</label>
-      <textarea id="registrationCodesInput" rows="8" inputmode="numeric" placeholder="12345&#10;67890"></textarea>
-      <button class="primary" id="saveRegistrationCodesBtn">افزودن کدها</button>
+      <label>هر خط: کد ثبت‌نام,شماره دانشجویی</label>
+      <textarea id="registrationCodesInput" rows="8" placeholder="12345,40123456&#10;67890,40123457"></textarea>
+      <button class="primary" id="saveRegistrationCodesBtn">افزودن / اتصال کدها</button>
       <button class="secondary btn" id="revokeRegistrationCodesBtn" type="button">ابطال کدهای استفاده‌نشده</button>
-      <p class="muted">کدهای مصرف‌شده قابل ابطال نیستند. کدها در پنل نمایش داده نمی‌شوند.</p>
+      <p class="muted">شماره دانشجویی باید ۶ تا ۲۰ رقم باشد. برای اتصال کدهای قبلی هم کد و شماره را وارد کنید. کدهای مصرف‌شده قابل ابطال نیستند و کدها در پنل نمایش داده نمی‌شوند.</p>
       <div class="success" id="registrationCodesMsg" style="display:none;"></div>
       <div class="error" id="registrationCodesError" style="display:none;"></div>
     </div>
@@ -217,7 +221,7 @@ async function showPanel() {
 async function loadRegistrationCodes() {
   const r = await fetch('/api/admin/registration-codes').then(r => r.json());
   document.getElementById('registrationCodeCounts').textContent =
-    `کدهای قابل‌استفاده: ${r.availableCount} — کدهای مصرف‌شده: ${r.usedCount}`;
+    `کدهای قابل‌استفاده: ${r.availableCount} — کدهای مصرف‌شده: ${r.usedCount} — بدون شماره دانشجویی: ${r.unmappedCount}`;
 }
 
 async function updateRegistrationCodes(method) {
@@ -226,12 +230,21 @@ async function updateRegistrationCodes(method) {
   const error = document.getElementById('registrationCodesError');
   success.style.display = 'none';
   error.style.display = 'none';
-  const registrationCodes = input.value.split(/\r?\n/).map(code => code.trim()).filter(Boolean);
-  if (!registrationCodes.length) {
+  const lines = input.value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length) {
     error.textContent = 'حداقل یک کد را وارد کنید.';
     error.style.display = 'block';
     return;
   }
+  const parsedLines = lines.map(line => line.split(/[,\t]/).map(value => value.trim()));
+  if (method === 'POST' && parsedLines.some(values => values.length !== 2)) {
+    error.textContent = 'برای افزودن یا اتصال، هر خط باید به شکل «کد,شماره دانشجویی» باشد.';
+    error.style.display = 'block';
+    return;
+  }
+  const registrationCodes = method === 'POST'
+    ? parsedLines.map(([code, studentId]) => ({ code, studentId }))
+    : parsedLines.map(([code]) => code);
   const res = await fetch('/api/admin/registration-codes', {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -245,9 +258,9 @@ async function updateRegistrationCodes(method) {
   }
   input.value = '';
   document.getElementById('registrationCodeCounts').textContent =
-    `کدهای قابل‌استفاده: ${data.availableCount} — کدهای مصرف‌شده: ${data.usedCount}`;
+    `کدهای قابل‌استفاده: ${data.availableCount} — کدهای مصرف‌شده: ${data.usedCount} — بدون شماره دانشجویی: ${data.unmappedCount}`;
   success.textContent = method === 'POST'
-    ? `${data.addedCount} کد جدید اضافه شد ✓`
+    ? `${data.addedCount} کد جدید اضافه و ${data.mappedCount} کد قبلی متصل شد؛ ${data.updatedUserCount} حساب قدیمی به‌روزرسانی شد ✓`
     : `${data.revokedCount} کد استفاده‌نشده باطل شد ✓`;
   success.style.display = 'block';
 }
@@ -260,27 +273,43 @@ async function loadConfig() {
   document.getElementById('cfgTitle').value = r.config.title || '';
   document.getElementById('cfgForceOpen').checked = !!r.config.leaderboardForceOpen;
   document.getElementById('cfgDuration').value = r.config.contestDurationMinutes || 60;
-  if (r.config.competitionEndTime) {
-    const d = new Date(r.config.competitionEndTime);
-    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    document.getElementById('cfgEndTime').value = local;
-  }
+  const toLocalInput = value => {
+    if (!value) return '';
+    const date = new Date(value);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  document.getElementById('cfgStartTime').value = toLocalInput(r.config.competitionStartTime);
+  document.getElementById('cfgEndTime').value = toLocalInput(r.config.competitionEndTime);
 }
 
 document.getElementById('saveCfgBtn').onclick = async () => {
+  const startTimeLocal = document.getElementById('cfgStartTime').value;
   const endTimeLocal = document.getElementById('cfgEndTime').value;
+  const competitionStartTime = startTimeLocal ? new Date(startTimeLocal).toISOString() : null;
   const competitionEndTime = endTimeLocal ? new Date(endTimeLocal).toISOString() : null;
+  const msg = document.getElementById('cfgMsg');
+  const error = document.getElementById('cfgError');
+  msg.style.display = 'none';
+  error.style.display = 'none';
   const res = await fetch('/api/admin/config', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title: document.getElementById('cfgTitle').value,
+      competitionStartTime,
       competitionEndTime,
       contestDurationMinutes: Number(document.getElementById('cfgDuration').value),
       leaderboardForceOpen: document.getElementById('cfgForceOpen').checked
     })
   });
-  const msg = document.getElementById('cfgMsg');
-  if (res.ok) { msg.textContent = 'ذخیره شد ✓'; msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
+  const data = await res.json();
+  if (!res.ok) {
+    error.textContent = data.error || 'خطا در ذخیره تنظیمات مسابقه.';
+    error.style.display = 'block';
+    return;
+  }
+  msg.textContent = 'ذخیره شد ✓';
+  msg.style.display = 'block';
+  setTimeout(() => { msg.style.display = 'none'; }, 2000);
 };
 
 document.getElementById('addQBtn').onclick = async () => {
@@ -411,8 +440,8 @@ async function loadLeaderboard() {
     <p class="muted">وضعیت لیدربورد عمومی: ${r.locked ? '🔒 قفل' : '🔓 باز'}</p>
     <a class="btn secondary" href="/api/admin/leaderboard/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل</a>
     <table>
-      <thead><tr><th>رتبه</th><th>کاربر</th><th>امتیاز</th><th>پاسخ‌داده</th></tr></thead>
-      <tbody>${r.entries.map((e, i) => `<tr><td class="rank">${i+1}</td><td>${escapeHtml(e.username)}</td><td>${e.score}</td><td class="muted">${e.answered}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>رتبه</th><th>نام کاربری</th><th>شماره دانشجویی</th><th>امتیاز</th><th>پاسخ‌داده</th></tr></thead>
+      <tbody>${r.entries.map((e, i) => `<tr><td class="rank">${i+1}</td><td>${escapeHtml(e.username)}</td><td>${escapeHtml(e.studentId)}</td><td>${e.score}</td><td class="muted">${e.answered}</td></tr>`).join('')}</tbody>
     </table>
   `;
 }
@@ -420,7 +449,7 @@ async function loadLeaderboard() {
 async function loadUsers() {
   const r = await fetch('/api/admin/users').then(r => r.json());
   document.getElementById('userList').innerHTML = r.users.length
-    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><a class="btn secondary" href="/api/admin/users/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل شرکت‌کننده‌ها</a><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی (ثبت‌نام قدیمی)</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
+    ? `<p class="muted">تعداد کل: ${r.users.length} نفر</p><a class="btn secondary" href="/api/admin/users/export" download style="text-decoration:none; display:inline-block; margin-bottom:14px;">📥 دانلود اکسل شرکت‌کننده‌ها</a><table><thead><tr><th>نام کاربری</th><th>شماره دانشجویی</th></tr></thead><tbody>${r.users.map(u => `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.studentId)}</td></tr>`).join('')}</tbody></table>`
     : '<p class="muted">هنوز کسی ثبت‌نام نکرده.</p>';
 }
 
