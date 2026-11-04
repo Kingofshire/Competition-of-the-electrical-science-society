@@ -84,8 +84,9 @@ body {
   background-color: #05081A;
   background-size: cover;
   background-position: center bottom;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .auth-page .card {
@@ -209,6 +210,29 @@ body {
   max-width: 800px; /* فشرده تر و شکیلتر شدن باکس اصلی */
   margin: 0 auto;
   padding: 40px 24px 80px;
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+  margin-top: 32px;
+  padding: 18px 12px 0;
+  border-top: 1px solid rgba(212, 175, 55, 0.24);
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.site-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* هدر متمایز و تمیز */
